@@ -1,3 +1,10 @@
+## [3.0.5](https://github.com/Mostafa-SAID7/Market-Api/compare/v3.0.4...v3.0.5) (2026-09-28)
+
+
+### Bug Fixes
+
+* **orders:** calculate order pricing server-side ([3a764aa](https://github.com/Mostafa-SAID7/Market-Api/commit/3a764aa8a1f21c0815c2f694d4de89be2eced664))
+
 ## [3.0.4](https://github.com/Mostafa-SAID7/Market-Api/compare/v3.0.3...v3.0.4) (2026-09-24)
 
 
