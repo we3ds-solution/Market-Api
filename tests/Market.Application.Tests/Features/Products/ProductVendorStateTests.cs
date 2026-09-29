@@ -38,6 +38,7 @@ public class ProductVendorStateTests
             .ReturnsAsync(pendingVendor);
 
         var handler = new CreateProductCommandHandler(unitOfWork.Object, logger.Object);
+
         var command = new CreateProductCommand
         {
             Name = "Product",
@@ -80,6 +81,7 @@ public class ProductVendorStateTests
             .ReturnsAsync(inactiveVendor);
 
         var handler = new CreateProductCommandHandler(unitOfWork.Object, logger.Object);
+
         var command = new CreateProductCommand
         {
             Name = "Product",
@@ -129,14 +131,14 @@ public class ProductVendorStateTests
             Quantity = 10
         };
 
-        unitOfWork.Setup(u => u.Vendors).Returns(vendorRepository.Object);
-        unitOfWork.Setup(u => u.Categories).Returns(categoryRepository.Object);
-        unitOfWork.Setup(u => u.Products).Returns(productRepository.Object);
+        unitOfWork.SetupGet(u => u.Vendors).Returns(vendorRepository.Object);
+        unitOfWork.SetupGet(u => u.Categories).Returns(categoryRepository.Object);
+        unitOfWork.SetupGet(u => u.Products).Returns(productRepository.Object);
         
         vendorRepository.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>()))
             .ReturnsAsync(approvedVendor);
-        categoryRepository.Setup(r => r.ExistsAsync(1, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
+        categoryRepository.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Category { Id = 1, IsActive = true });
         productRepository.Setup(r => r.GetBySkuAsync(null, It.IsAny<CancellationToken>()))
             .ReturnsAsync((Product?)null);
         productRepository.Setup(r => r.CreateAsync(It.IsAny<Product>(), It.IsAny<CancellationToken>()))
@@ -295,4 +297,7 @@ public class ProductVendorStateTests
         Assert.Equal(1, product.VendorId);  // FK still intact
     }
 }
+
+
+
 

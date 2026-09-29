@@ -31,9 +31,9 @@ namespace Market.Application.Features.Categories.Queries
 
             var categories = await _unitOfWork.Categories.GetAllAsync();
             
-            // Filter to active categories only for client queries
+            // Filter to active, non-deleted categories only for client queries
             return categories
-                .Where(c => c.IsActive)
+                .Where(c => c.IsActive && !c.IsDeleted)
                 .Select(c => new CategoryResponse
                 {
                     Id = c.Id,

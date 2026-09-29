@@ -16,6 +16,10 @@ public class ProductSkuUniquenessTests
         var unitOfWork = new Mock<IUnitOfWork>(MockBehavior.Strict);
         var productRepo = new Mock<IProductRepository>(MockBehavior.Strict);
         var vendorRepo = new Mock<IVendorRepository>(MockBehavior.Strict);
+        var categoryRepo = new Mock<ICategoryRepository>(MockBehavior.Strict);
+        
+        categoryRepo.Setup(r => r.GetByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new Category { Id = 1, IsActive = true });
 
         // Default vendor: approved and active (so SKU tests don't fail on vendor-state checks)
         var approvedActiveVendor = new Vendor
@@ -31,6 +35,7 @@ public class ProductSkuUniquenessTests
 
         unitOfWork.SetupGet(u => u.Products).Returns(productRepo.Object);
         unitOfWork.SetupGet(u => u.Vendors).Returns(vendorRepo.Object);
+        unitOfWork.SetupGet(u => u.Categories).Returns(categoryRepo.Object);
         unitOfWork.Setup(u => u.SaveAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         productRepo.Setup(r => r.UpdateAsync(It.IsAny<Product>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
@@ -67,8 +72,7 @@ public class ProductSkuUniquenessTests
             .ReturnsAsync((Product p, CancellationToken _) => p);
         vendorRepo.Setup(r => r.GetByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(approvedActiveVendor);
-        categoryRepo.Setup(r => r.ExistsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
+        categoryRepo.Setup(r => r.GetByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync(new Category { Id = 1, IsActive = true });
 
         var handler = new CreateProductCommandHandler(
             unitOfWork.Object,
@@ -401,8 +405,7 @@ public class ProductSkuUniquenessTests
         };
         vendorRepo.Setup(r => r.GetByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(approvedActiveVendor);
-        categoryRepo.Setup(r => r.ExistsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
+        categoryRepo.Setup(r => r.GetByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync(new Category { Id = 1, IsActive = true });
 
         // Simulate application-level check passes for both
         productRepo.Setup(r => r.GetBySkuAsync("RACE-SKU", It.IsAny<CancellationToken>()))
@@ -662,5 +665,6 @@ public class ProductSkuUniquenessTests
         productRepo.Verify(r => r.GetBySkuAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }
+
 
 

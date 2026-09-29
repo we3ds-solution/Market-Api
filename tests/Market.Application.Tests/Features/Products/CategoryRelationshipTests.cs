@@ -126,7 +126,7 @@ public class CategoryRelationshipTests
         var command = new CreateProductCommand
         {
             Name = "Test Product",
-            Description = "Test",
+            Description = "Test product description",
             VendorId = 1,
             CategoryId = 1,
             Price = 100m,
@@ -162,7 +162,7 @@ public class CategoryRelationshipTests
         var command = new CreateProductCommand
         {
             Name = "Test Product",
-            Description = "Test",
+            Description = "Test product description",
             VendorId = 1,
             CategoryId = 999,
             Price = 100m,
@@ -194,7 +194,7 @@ public class CategoryRelationshipTests
         var command = new CreateProductCommand
         {
             Name = "Test Product",
-            Description = "Test",
+            Description = "Test product description",
             VendorId = 1,
             CategoryId = 1,
             Price = 100m,
@@ -546,3 +546,4 @@ public class CategoryRelationshipTests
         Assert.NotNull(product.Category);     // Navigation preserved
     }
 }
+
