@@ -27,7 +27,7 @@ namespace Market.Application.Tests.Features.Reviews;
 /// 15. Existing verified-purchase tests from Issue #7 remain passing
 /// 16. Issues #1–#13 remain intact
 /// </summary>
-public class ReviewDuplicationTests
+public static class ReviewDuplicationTests
 {
     // -----------------------------------------------------------------------
     // Helpers for CreateReviewCommand
