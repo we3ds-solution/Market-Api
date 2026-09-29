@@ -35,18 +35,17 @@ Currently, the API does not require authentication. Future versions will include
 ```json
 [
   {
-    "id": "507f1f77bcf86cd799439011",
+    "id": 1,
     "name": "Laptop",
     "description": "Gaming laptop",
     "price": 1299.99,
     "discountPrice": 1099.99,
-    "category": "Electronics",
-    "vendorId": "507f1f77bcf86cd799439000",
+    "categoryId": 2,
+    "vendorId": 1,
     "quantity": 50,
     "imageUrl": "https://example.com/laptop.jpg",
     "averageRating": 4.5,
-    "reviewCount": 12,
-    "createdAt": "2026-01-15T10:30:00Z"
+    "reviewCount": 12
   }
 ]
 ```
@@ -62,15 +61,18 @@ curl http://localhost:5000/api/products
 
 **Endpoint**: `GET /api/products/{id}`
 
-**Parameters**: `id` (string, required) - MongoDB ObjectId
+**Parameters**: `id` (integer, required) - Product ID
 
 **Response**: `200 OK`
 ```json
 {
-  "id": "507f1f77bcf86cd799439011",
+  "id": 1,
   "name": "Laptop",
+  "description": "Gaming laptop with RTX graphics",
   "price": 1299.99,
-  "category": "Electronics"
+  "categoryId": 2,
+  "vendorId": 1,
+  "quantity": 50
 }
 ```
 
@@ -87,8 +89,8 @@ curl http://localhost:5000/api/products
 {
   "name": "Gaming Keyboard",
   "description": "Mechanical keyboard with RGB",
-  "category": "Electronics",
-  "vendorId": "507f1f77bcf86cd799439000",
+  "categoryId": 2,
+  "vendorId": 1,
   "price": 149.99,
   "discountPrice": 99.99,
   "quantity": 30,
@@ -100,21 +102,24 @@ curl http://localhost:5000/api/products
 **Response**: `201 Created`
 ```json
 {
-  "id": "507f1f77bcf86cd799439012",
+  "id": 12,
   "name": "Gaming Keyboard",
   "price": 149.99,
-  "createdAt": "2026-01-15T10:35:00Z"
+  "categoryId": 2,
+  "vendorId": 1
 }
 ```
 
 **Validation Rules**:
-- `name`: Required, max 200 characters
+- `name`: Required, max 255 characters
 - `price`: Required, must be positive
-- `category`: Required
-- `vendorId`: Required
+- `categoryId`: Required, must reference active category
+- `vendorId`: Required, must reference approved vendor
+- `quantity`: Required, non-negative
 
 **Errors**: 
 - `400 Bad Request` - Validation failed
+- `404 Not Found` - Category or Vendor not found
 - `422 Unprocessable Entity` - Invalid data
 
 ---

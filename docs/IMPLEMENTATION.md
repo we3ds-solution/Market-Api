@@ -1,6 +1,6 @@
 # Implementation Guide
 
-Complete implementation details for Market API v2.0 with MediatR, Validation, and Service layers.
+Implementation details for Market API v3.0+ with Clean Architecture, CQRS, EF Core, and SQL Server.
 
 ## Table of Contents
 
@@ -8,56 +8,53 @@ Complete implementation details for Market API v2.0 with MediatR, Validation, an
 - [Entity Structure](#entity-structure)
 - [MediatR Commands & Queries](#mediatr-commands--queries)
 - [Validation Framework](#validation-framework)
-- [Service Layer](#service-layer)
 - [Repository Pattern](#repository-pattern)
 - [Unit of Work](#unit-of-work)
 - [Dependency Injection](#dependency-injection)
+- [EF Core Configuration](#ef-core-configuration)
 
 ## Architecture Overview
 
-Market API follows a **layered architecture** with **CQRS (Command Query Responsibility Segregation)** using MediatR:
+Market API follows a **strict 4-layer Clean Architecture** with **CQRS (Command Query Responsibility Segregation)** using MediatR:
 
 ```
 ┌─────────────────────────────┐
-│   Presentation Layer        │ ← Controllers, HTTP
+│   API Layer                 │ ← Controllers, Middleware, HTTP
 ├─────────────────────────────┤
-│   MediatR Layer             │ ← Commands, Queries, Handlers
+│   Application Layer         │ ← Commands, Queries, Handlers, DTOs
 ├─────────────────────────────┤
-│   Service Layer             │ ← Business Logic, Validation
+│   Infrastructure Layer      │ ← DbContext, Repositories, EF Core
 ├─────────────────────────────┤
-│   Repository Layer          │ ← Data Access Abstraction
-├─────────────────────────────┤
-│   Data Layer                │ ← MongoDB, ORM
+│   Domain Layer              │ ← Entities, Value Objects, Interfaces
 └─────────────────────────────┘
 ```
 
 ## Entity Structure
 
-All entities inherit from `BaseEntity`:
+All entities inherit from `BaseEntity` which includes:
 
 ```csharp
 public abstract class BaseEntity
 {
-    [BsonId]
-    [BsonRepresentation(BsonType.ObjectId)]
-    public string Id { get; set; }
-    
+    public int Id { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
+    public bool IsDeleted { get; set; } = false;
 }
 ```
 
 ### Core Entities
 
-1. **Product** - Marketplace products with pricing, inventory, ratings
-2. **Category** - Product categorization with slug and display order
+1. **Product** - Marketplace products with pricing, inventory, ratings, soft-delete support
+2. **Category** - Product categorization with slug, active status, and display order
 3. **User** - Customer/vendor accounts with roles
 4. **Vendor** - Store information with approval status and commission
-5. **Order** - Customer orders with items, payment, and shipping
-6. **Cart** - Shopping carts with line items
-7. **Review** - Product reviews with ratings and verification
+5. **Order** - Customer orders with items, payment, and shipping (immutable snapshots)
+6. **OrderItem** - Order line items with historical pricing data
+7. **Cart** - Shopping carts with line items (mutable, per-user)
+8. **Review** - Product reviews with ratings, verified-purchase checks, and duplication prevention
 
-All entities use `[BsonIgnoreExtraElements]` for schema flexibility.
+All entities are configured via EF Core FluentAPI in `Infrastructure/Data/EntityConfigurations/`.
 
 ## MediatR Commands & Queries
 
@@ -65,12 +62,13 @@ All entities use `[BsonIgnoreExtraElements]` for schema flexibility.
 
 Commands represent **state-changing operations** (Create, Update, Delete).
 
-**Structure**:
+**Example - Create Product Command**:
 ```csharp
 // 1. Define the Command (Request)
 public class CreateProductCommand : IRequest<ProductResponse>
 {
     public string Name { get; set; }
+    public int CategoryId { get; set; }
     public decimal Price { get; set; }
 }
 
@@ -90,14 +88,20 @@ public class CreateProductCommandHandler : IRequestHandler<CreateProductCommand,
     {
         _logger.LogInformation("Creating product: {Name}", request.Name);
         
+        // Validate category exists and is active
+        var category = await _unitOfWork.Categories.GetByIdAsync(request.CategoryId, cancellationToken);
+        if (category == null || !category.IsActive)
+            throw new InvalidOperationException($"Category {request.CategoryId} not found or inactive");
+        
         var product = new Product 
         { 
             Name = request.Name, 
+            CategoryId = request.CategoryId,
             Price = request.Price 
         };
         
-        await _unitOfWork.Products.CreateAsync(product);
-        await _unitOfWork.SaveAsync();
+        await _unitOfWork.Products.CreateAsync(product, cancellationToken);
+        await _unitOfWork.SaveAsync(cancellationToken);
         
         return new ProductResponse { Id = product.Id, Name = product.Name };
     }
@@ -105,344 +109,187 @@ public class CreateProductCommandHandler : IRequestHandler<CreateProductCommand,
 
 // 3. Use in Controller
 [HttpPost]
-public async Task<IActionResult> Create(CreateProductCommand command)
+public async Task<ActionResult<ProductResponse>> CreateProduct(CreateProductCommand command)
 {
     var result = await _mediator.Send(command);
-    return CreatedAtAction(nameof(Get), new { id = result.Id }, result);
+    return CreatedAtAction(nameof(GetProduct), new { id = result.Id }, result);
 }
 ```
 
-**Available Commands by Entity**:
-- `CreateProductCommand`, `UpdateProductCommand`, `DeleteProductCommand`
-- `CreateCategoryCommand`, `UpdateCategoryCommand`, `DeleteCategoryCommand`
-- `CreateUserCommand`, `UpdateUserCommand`, `DeleteUserCommand`
-- `CreateVendorCommand`, `UpdateVendorCommand`, `DeleteVendorCommand`, `ApproveVendorCommand`
-- `CreateOrderCommand`, `UpdateOrderCommand`, `DeleteOrderCommand`
-- `AddToCartCommand`, `RemoveFromCartCommand`, `ClearCartCommand`
-- `CreateReviewCommand`, `UpdateReviewCommand`, `DeleteReviewCommand`
-
 ### Query Pattern (Read Operations)
 
-Queries represent **read-only operations** with no side effects.
+Queries represent **read-only operations**. They do not modify state.
 
-**Structure**:
+**Example - Get Product By ID Query**:
 ```csharp
 // 1. Define the Query (Request)
-public class GetAllProductsQuery : IRequest<List<ProductResponse>>
+public class GetProductByIdQuery : IRequest<ProductResponse?>
 {
+    public int Id { get; set; }
 }
 
 // 2. Implement the Handler
-public class GetAllProductsQueryHandler : IRequestHandler<GetAllProductsQuery, List<ProductResponse>>
+public class GetProductByIdQueryHandler : IRequestHandler<GetProductByIdQuery, ProductResponse?>
 {
-    private readonly IUnitOfWork _unitOfWork;
-    private readonly ILogger<GetAllProductsQueryHandler> _logger;
+    private readonly IProductReadService _productReadService;
     
-    public GetAllProductsQueryHandler(IUnitOfWork unitOfWork, ILogger<GetAllProductsQueryHandler> logger)
+    public GetProductByIdQueryHandler(IProductReadService productReadService)
     {
-        _unitOfWork = unitOfWork;
-        _logger = logger;
+        _productReadService = productReadService;
     }
     
-    public async Task<List<ProductResponse>> Handle(GetAllProductsQuery request, CancellationToken cancellationToken)
+    public async Task<ProductResponse?> Handle(GetProductByIdQuery request, CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Retrieving all products");
-        
-        var products = await _unitOfWork.Products.GetAllAsync();
-        return products.Select(p => new ProductResponse 
-        { 
-            Id = p.Id, 
-            Name = p.Name, 
-            Price = p.Price 
-        }).ToList();
+        return await _productReadService.GetByIdAsync(request.Id, cancellationToken);
     }
 }
 
 // 3. Use in Controller
-[HttpGet]
-public async Task<IActionResult> GetAll()
+[HttpGet("{id}")]
+public async Task<ActionResult<ProductResponse>> GetProduct(int id)
 {
-    var result = await _mediator.Send(new GetAllProductsQuery());
+    var result = await _mediator.Send(new GetProductByIdQuery { Id = id });
+    if (result == null)
+        return NotFound();
     return Ok(result);
 }
 ```
 
-**Available Queries by Entity**:
-- `GetAllProductsQuery`, `GetProductByIdQuery`, `GetProductsByCategoryQuery`
-- `GetAllCategoriesQuery`, `GetCategoryByIdQuery`
-- `GetAllUsersQuery`, `GetUserByIdQuery`
-- `GetAllVendorsQuery`, `GetVendorByIdQuery`
-- `GetAllOrdersQuery`, `GetOrderByIdQuery`
-- `GetCartByUserIdQuery`
-- `GetAllReviewsQuery`, `GetReviewsByProductIdQuery`
-
-### Response DTOs
-
-Each entity has a response DTO for API serialization:
-
-```csharp
-public class ProductResponse
-{
-    public string Id { get; set; }
-    public string Name { get; set; }
-    public string Description { get; set; }
-    public decimal Price { get; set; }
-    public decimal? DiscountPrice { get; set; }
-    public string Category { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime? UpdatedAt { get; set; }
-}
-```
-
-DTOs **exclude sensitive data** and **match API contracts**, not entity structures.
-
 ## Validation Framework
 
-### Validation Architecture
+Market API uses **FluentValidation** for declarative validation rules.
 
-```
-Request Data
-    ↓
-Validation Middleware
-    ↓
-Service Validator
-    ↓
-Valid? → Proceed : Error Response
-```
-
-### Validator Interface
-
+**Product Validator**:
 ```csharp
-public interface IValidator<T>
+public class ProductValidator : AbstractValidator<Product>
 {
-    Task<ValidationResult> ValidateAsync(T entity);
-}
-
-public class ValidationResult
-{
-    public bool IsValid { get; set; }
-    public List<ValidationError> Errors { get; set; } = new();
-}
-
-public class ValidationError
-{
-    public string Field { get; set; }
-    public string Message { get; set; }
-}
-```
-
-### Example Validator
-
-```csharp
-public class ProductValidator : IValidator<Product>
-{
-    public async Task<ValidationResult> ValidateAsync(Product entity)
+    public ProductValidator()
     {
-        var errors = new List<ValidationError>();
-        
-        // Required field
-        if (string.IsNullOrWhiteSpace(entity.Name))
-            errors.Add(new ValidationError("Name", "Product name is required"));
-        
-        // Length constraint
-        if (entity.Name?.Length > 200)
-            errors.Add(new ValidationError("Name", "Name cannot exceed 200 characters"));
-        
-        // Numeric range
-        if (entity.Price <= 0)
-            errors.Add(new ValidationError("Price", "Price must be positive"));
-        
-        // Format validation (URL)
-        if (!string.IsNullOrEmpty(entity.ImageUrl) && !Uri.TryCreate(entity.ImageUrl, UriKind.Absolute, out _))
-            errors.Add(new ValidationError("ImageUrl", "Invalid image URL format"));
-        
-        return new ValidationResult 
-        { 
-            IsValid = errors.Count == 0, 
-            Errors = errors 
-        };
+        RuleFor(p => p.Name)
+            .NotEmpty().WithMessage("Product name is required")
+            .MaximumLength(255).WithMessage("Product name cannot exceed 255 characters");
+
+        RuleFor(p => p.Price)
+            .GreaterThan(0).WithMessage("Product price must be greater than 0");
+
+        RuleFor(p => p.CategoryId)
+            .GreaterThan(0).WithMessage("Category ID must be valid");
     }
 }
 ```
 
-### Validation Middleware
-
+**Validator Pipeline Behavior** (MediatR middleware):
 ```csharp
-public class ValidationMiddleware
+public class ValidationBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
+    where TRequest : IRequest<TResponse>
 {
-    private readonly RequestDelegate _next;
-    
-    public ValidationMiddleware(RequestDelegate next)
+    private readonly IEnumerable<IValidator<TRequest>> _validators;
+
+    public ValidationBehavior(IEnumerable<IValidator<TRequest>> validators)
     {
-        _next = next;
+        _validators = validators;
     }
-    
-    public async Task InvokeAsync(HttpContext context)
+
+    public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
     {
-        try
+        var context = new ValidationContext<TRequest>(request);
+        var failures = new List<ValidationFailure>();
+
+        foreach (var validator in _validators)
         {
-            await _next(context);
+            var result = await validator.ValidateAsync(context, cancellationToken);
+            failures.AddRange(result.Errors);
         }
-        catch (ValidationException ex)
-        {
-            context.Response.StatusCode = StatusCodes.Status400BadRequest;
-            context.Response.ContentType = "application/json";
-            
-            var response = new { errors = ex.Errors };
-            await context.Response.WriteAsJsonAsync(response);
-        }
+
+        if (failures.Any())
+            throw new ValidationException(failures);
+
+        return await next();
     }
 }
 ```
-
-## Service Layer
-
-### Service Pattern
-
-Services encapsulate **business logic** and **cross-cutting concerns**.
-
-```csharp
-public interface IProductService
-{
-    Task<Product> CreateAsync(Product product);
-    Task<Product> UpdateAsync(string id, Product product);
-    Task<bool> DeleteAsync(string id);
-    Task<Product> GetByIdAsync(string id);
-    Task<IEnumerable<Product>> GetAllAsync();
-}
-
-public class ProductService : IProductService
-{
-    private readonly IUnitOfWork _unitOfWork;
-    private readonly IValidator<Product> _validator;
-    private readonly ILogger<ProductService> _logger;
-    
-    public ProductService(
-        IUnitOfWork unitOfWork,
-        IValidator<Product> validator,
-        ILogger<ProductService> logger)
-    {
-        _unitOfWork = unitOfWork;
-        _validator = validator;
-        _logger = logger;
-    }
-    
-    public async Task<Product> CreateAsync(Product product)
-    {
-        _logger.LogInformation("Creating product: {Name}", product.Name);
-        
-        // Validate
-        var validationResult = await _validator.ValidateAsync(product);
-        if (!validationResult.IsValid)
-        {
-            _logger.LogWarning("Product validation failed: {Errors}", validationResult.Errors);
-            throw new ValidationException(validationResult.Errors);
-        }
-        
-        // Create
-        await _unitOfWork.Products.CreateAsync(product);
-        await _unitOfWork.SaveAsync();
-        
-        _logger.LogInformation("Product created: {ProductId}", product.Id);
-        return product;
-    }
-}
-```
-
-### Service Responsibilities
-
-1. **Validation** - Validate input using validators
-2. **Business Logic** - Apply business rules
-3. **Logging** - Log all operations
-4. **Error Handling** - Handle and report errors
-5. **Coordination** - Coordinate multiple repositories
 
 ## Repository Pattern
 
-### Generic Repository
+The Repository pattern abstracts data access behind domain interfaces.
 
+**Domain Interface** (`Market.Domain/Interfaces/IProductRepository.cs`):
 ```csharp
-public interface IRepository<T> where T : class
+public interface IProductRepository
 {
-    Task<IEnumerable<T>> GetAllAsync();
-    Task<T> GetByIdAsync(string id);
-    Task CreateAsync(T entity);
-    Task UpdateAsync(string id, T entity);
-    Task DeleteAsync(string id);
+    Task<Product?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
+    Task<IEnumerable<Product>> GetAllAsync(CancellationToken cancellationToken = default);
+    Task<Product?> GetBySkuAsync(string sku, CancellationToken cancellationToken = default);
+    Task CreateAsync(Product product, CancellationToken cancellationToken = default);
+    Task UpdateAsync(Product product, CancellationToken cancellationToken = default);
+    Task DeleteAsync(Product product, CancellationToken cancellationToken = default);
 }
+```
 
-public class Repository<T> : IRepository<T> where T : class
+**Infrastructure Implementation** (`Market.Infrastructure/Persistence/ProductRepository.cs`):
+```csharp
+public class ProductRepository : IProductRepository
 {
-    protected readonly IMongoCollection<T> _collection;
-    protected readonly ILogger<Repository<T>> _logger;
+    private readonly MarketDbContext _dbContext;
     
-    public Repository(IMongoCollection<T> collection, ILogger<Repository<T>> logger)
+    public ProductRepository(MarketDbContext dbContext)
     {
-        _collection = collection;
-        _logger = logger;
+        _dbContext = dbContext;
     }
     
-    public virtual async Task<IEnumerable<T>> GetAllAsync()
+    public async Task<Product?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Getting all {Entity}", typeof(T).Name);
-        return await _collection.Find(_ => true).ToListAsync();
+        return await _dbContext.Products
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == id && !p.IsDeleted, cancellationToken);
     }
     
-    public virtual async Task<T> GetByIdAsync(string id)
+    public async Task<IEnumerable<Product>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        return await _collection.Find(x => x.Id == id).FirstOrDefaultAsync();
+        return await _dbContext.Products
+            .Where(p => !p.IsDeleted)
+            .AsNoTracking()
+            .ToListAsync(cancellationToken);
     }
     
-    public virtual async Task CreateAsync(T entity)
+    public async Task<Product?> GetBySkuAsync(string sku, CancellationToken cancellationToken = default)
     {
-        await _collection.InsertOneAsync(entity);
+        return await _dbContext.Products
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.SKU == sku && !p.IsDeleted, cancellationToken);
     }
     
-    public virtual async Task UpdateAsync(string id, T entity)
+    public async Task CreateAsync(Product product, CancellationToken cancellationToken = default)
     {
-        await _collection.ReplaceOneAsync(x => x.Id == id, entity);
+        await _dbContext.Products.AddAsync(product, cancellationToken);
     }
     
-    public virtual async Task DeleteAsync(string id)
+    public async Task UpdateAsync(Product product, CancellationToken cancellationToken = default)
     {
-        await _collection.DeleteOneAsync(x => x.Id == id);
+        _dbContext.Products.Update(product);
+        await Task.CompletedTask;
+    }
+    
+    public async Task DeleteAsync(Product product, CancellationToken cancellationToken = default)
+    {
+        product.IsDeleted = true;  // Soft delete
+        _dbContext.Products.Update(product);
+        await Task.CompletedTask;
     }
 }
 ```
 
-### Specific Repository
-
-```csharp
-public interface IProductRepository : IRepository<Product>
-{
-    Task<IEnumerable<Product>> GetByPriceRangeAsync(decimal minPrice, decimal maxPrice);
-}
-
-public class ProductRepository : Repository<Product>, IProductRepository
-{
-    public ProductRepository(
-        IMongoCollection<Product> collection,
-        ILogger<ProductRepository> logger)
-        : base(collection, logger)
-    {
-    }
-    
-    public async Task<IEnumerable<Product>> GetByPriceRangeAsync(decimal minPrice, decimal maxPrice)
-    {
-        var filter = Builders<Product>.Filter.Gte(p => p.Price, minPrice) &
-                    Builders<Product>.Filter.Lte(p => p.Price, maxPrice);
-        
-        return await _collection.Find(filter).ToListAsync();
-    }
-}
-```
+**Key Points**:
+- Always query with `Where(p => !p.IsDeleted)` for soft-deleted entities
+- Use `AsNoTracking()` for read-only queries (better performance)
+- Repository is thin—mostly delegates to EF Core
+- All async operations support cancellation tokens
 
 ## Unit of Work
 
-### Pattern Implementation
-
+**Domain Interface** (`Market.Domain/Interfaces/IUnitOfWork.cs`):
 ```csharp
-public interface IUnitOfWork
+public interface IUnitOfWork : IDisposable
 {
     IProductRepository Products { get; }
     ICategoryRepository Categories { get; }
@@ -452,188 +299,141 @@ public interface IUnitOfWork
     ICartRepository Carts { get; }
     IReviewRepository Reviews { get; }
     
-    Task<int> SaveAsync();
+    Task<int> SaveAsync(CancellationToken cancellationToken = default);
 }
+```
 
+**Infrastructure Implementation** (`Market.Infrastructure/Persistence/UnitOfWork.cs`):
+```csharp
 public class UnitOfWork : IUnitOfWork
 {
-    private readonly IMongoClient _mongoClient;
-    private readonly IMongoDatabase _database;
+    private readonly MarketDbContext _dbContext;
     private readonly ILogger<UnitOfWork> _logger;
+
+    private IProductRepository? _productRepository;
+    private ICategoryRepository? _categoryRepository;
+    // ... other repositories
     
-    private IProductRepository _productRepository;
-    private ICategoryRepository _categoryRepository;
-    private IUserRepository _userRepository;
-    private IVendorRepository _vendorRepository;
-    private IOrderRepository _orderRepository;
-    private ICartRepository _cartRepository;
-    private IReviewRepository _reviewRepository;
-    
-    public UnitOfWork(
-        IMongoClient mongoClient,
-        IOptions<MongoDbSettings> settings,
-        ILogger<UnitOfWork> logger)
+    public UnitOfWork(MarketDbContext dbContext, ILogger<UnitOfWork> logger)
     {
-        _mongoClient = mongoClient;
-        _database = mongoClient.GetDatabase(settings.Value.DatabaseName);
+        _dbContext = dbContext;
         _logger = logger;
     }
     
     public IProductRepository Products =>
-        _productRepository ??= new ProductRepository(
-            _database.GetCollection<Product>("Products"),
-            new Logger<ProductRepository>(LoggerFactory.Create(builder => { })));
+        _productRepository ??= new ProductRepository(_dbContext);
     
-    // Similar for other repositories...
+    public ICategoryRepository Categories =>
+        _categoryRepository ??= new CategoryRepository(_dbContext);
     
-    public async Task<int> SaveAsync()
+    // ... other repository properties
+    
+    public async Task<int> SaveAsync(CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Saving changes");
-        // MongoDB operations are auto-committed, so this is a no-op
-        // But kept for compatibility with EF-style UoW pattern
-        return await Task.FromResult(0);
+        _logger.LogInformation("Saving changes to database");
+        return await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+    
+    public void Dispose()
+    {
+        _dbContext?.Dispose();
     }
 }
 ```
 
+**Advantages**:
+- Single save point across multiple repositories
+- Atomic transactions (all or nothing)
+- Lazy initialization of repositories
+- Centralized DbContext management
+
 ## Dependency Injection
 
-### Configuration in Program.cs
-
+**Application Registration** (`Program.cs`):
 ```csharp
-using Market.API.Configurations;
+// Add application services
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+builder.Services.AddScoped<IProductRepository, ProductRepository>();
+builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
+// ... other repositories
 
-var builder = WebApplication.CreateBuilder(args);
+// Add database
+builder.Services.AddDbContext<MarketDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Add services
-builder.Services.AddApplicationServices(builder.Configuration);
-builder.Services.AddValidators();        // Register validators
-builder.Services.AddMediatRServices();   // Register MediatR
-builder.Services.AddSwaggerDocumentation();
-builder.Services.AddDataServices();      // Register repositories, UoW
+// Add MediatR
+builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));
 
-var app = builder.Build();
+// Add Validators
+builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 
-// Initialize database
-await app.InitializeDatabaseAsync();
+// Add validation behavior
+builder.Services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 
-// Configure pipeline
-app.UseSwaggerDocumentation();
-app.UseApplicationMiddleware();
-app.MapApplicationRoutes();
-
-app.Run();
+// Add logging
+builder.Services.AddLogging();
 ```
 
-### Configuration Classes
+## EF Core Configuration
 
-**ValidatorConfiguration.cs**:
+All entity configurations are in `Infrastructure/Data/EntityConfigurations/`.
+
+**Example - Product Configuration**:
 ```csharp
-public static IServiceCollection AddValidators(this IServiceCollection services)
+public class ProductConfiguration : IEntityTypeConfiguration<Product>
 {
-    services.AddScoped<IValidator<Product>, ProductValidator>();
-    services.AddScoped<IValidator<Category>, CategoryValidator>();
-    // ... all validators
-    return services;
+    public void Configure(EntityTypeBuilder<Product> builder)
+    {
+        // Primary key
+        builder.HasKey(p => p.Id);
+
+        // Properties with constraints
+        builder.Property(p => p.Name)
+            .IsRequired()
+            .HasMaxLength(255);
+
+        builder.Property(p => p.Price)
+            .HasPrecision(18, 2);
+
+        // Indexes
+        builder.HasIndex(p => p.CategoryId);
+        builder.HasIndex(p => p.VendorId);
+        builder.HasIndex(p => p.SKU)
+            .IsUnique()
+            .HasFilter("[IsDeleted] = 0 AND [SKU] IS NOT NULL");
+
+        // Relationships
+        builder.HasOne(p => p.Category)
+            .WithMany(c => c.Products)
+            .HasForeignKey(p => p.CategoryId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(p => p.Vendor)
+            .WithMany(v => v.Products)
+            .HasForeignKey(p => p.VendorId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Table
+        builder.ToTable("Products");
+    }
 }
 ```
 
-**MediatRConfiguration.cs**:
-```csharp
-public static IServiceCollection AddMediatRServices(this IServiceCollection services)
-{
-    services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));
-    return services;
-}
-```
-
-**ServiceConfiguration.cs**:
-```csharp
-public static IServiceCollection AddApplicationServices(this IServiceCollection services, IConfiguration configuration)
-{
-    // MongoDB
-    services.Configure<MongoDbSettings>(configuration.GetSection(nameof(MongoDbSettings)));
-    services.AddSingleton<IMongoClient>(new MongoClient(configuration["MongoDbSettings:ConnectionString"]));
-    
-    // Services
-    services.AddScoped<IProductService, ProductService>();
-    services.AddScoped<IUserService, UserService>();
-    // ... all services
-    
-    // Unit of Work & Repositories
-    services.AddScoped<IUnitOfWork, UnitOfWork>();
-    
-    return services;
-}
-```
+**Key Configuration Points**:
+- Use `IsRequired()` for NOT NULL columns
+- Use `HasMaxLength()` for VARCHAR columns
+- Use `HasPrecision()` for decimal/float precision
+- Use `IsUnique()` for unique constraints
+- Use `OnDelete(DeleteBehavior.Restrict)` to prevent cascade deletes
+- Always configure indexes for foreign keys
 
 ## Best Practices
 
-### 1. Use MediatR for All Requests
-
-✅ **Good**: Use MediatR commands/queries
-```csharp
-var result = await _mediator.Send(new CreateProductCommand { ... });
-```
-
-❌ **Bad**: Call service directly
-```csharp
-var result = await _productService.CreateAsync(product);
-```
-
-### 2. Validate Before Processing
-
-✅ **Good**: Validate in service or command handler
-```csharp
-var validationResult = await _validator.ValidateAsync(product);
-if (!validationResult.IsValid)
-    throw new ValidationException(validationResult.Errors);
-```
-
-### 3. Log Important Operations
-
-✅ **Good**: Log with context
-```csharp
-_logger.LogInformation("Creating product: {Name} at price {Price}", product.Name, product.Price);
-```
-
-### 4. Use Dependency Injection
-
-✅ **Good**: Constructor injection
-```csharp
-public ProductService(IUnitOfWork unitOfWork, ILogger<ProductService> logger)
-{
-    _unitOfWork = unitOfWork;
-    _logger = logger;
-}
-```
-
-❌ **Bad**: Service locator
-```csharp
-var service = serviceProvider.GetService<IProductService>();
-```
-
-### 5. Return Response DTOs
-
-✅ **Good**: Map to DTO
-```csharp
-return new ProductResponse { Id = product.Id, Name = product.Name };
-```
-
-❌ **Bad**: Return entity
-```csharp
-return product;
-```
-
-## Future Enhancements
-
-1. **MediatR Behaviors** - Add logging, validation, caching behaviors
-2. **Pagination** - Add skip/take to queries
-3. **Filtering** - Advanced filtering support in queries
-4. **Sorting** - Sort query results
-5. **Projection** - Select specific fields
-6. **Specifications** - Specification pattern for complex queries
-7. **AutoMapper** - Auto-map entities to DTOs
-8. **Caching** - Redis caching layer
-9. **Events** - Domain events with handlers
-10. **Testing** - Unit and integration tests
+1. **Always use soft-delete filters** - Don't expose deleted entities to business logic
+2. **Use cancellation tokens** - Support graceful cancellation of long-running queries
+3. **Use AsNoTracking() for reads** - Better performance when you don't need change tracking
+4. **Keep repositories thin** - Most logic goes in handlers, not repositories
+5. **Use value objects** - Slug, Money, Email encapsulate validation
+6. **Validate early** - Catch errors in handlers before hitting the database
+7. **Log operations** - Important for debugging and auditing
+8. **Handle exceptions** - Return meaningful error responses

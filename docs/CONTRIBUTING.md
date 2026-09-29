@@ -32,7 +32,7 @@ We are committed to providing a welcoming and inspiring community for all. Pleas
 ### Prerequisites
 
 - .NET 9 SDK
-- MongoDB (or Docker)
+- SQL Server (LocalDB, Express, or Docker)
 - Git
 - Your favorite IDE (Visual Studio, VS Code, Rider)
 
@@ -57,19 +57,16 @@ We are committed to providing a welcoming and inspiring community for all. Pleas
    dotnet restore
    ```
 
-2. Update `appsettings.Development.json` with your MongoDB connection:
-   ```json
-   {
-     "MongoDbSettings": {
-       "ConnectionString": "mongodb://localhost:27017",
-       "DatabaseName": "MarketApiDev"
-     }
-   }
+2. Configure database connection string using .NET user secrets (keeps credentials out of tracked files):
+   ```bash
+   dotnet user-secrets set --project src/Market.API "ConnectionStrings:DefaultConnection" "Server=.;Database=MarketApiDb;Trusted_Connection=true;TrustServerCertificate=true;"
    ```
+   
+   For Docker environments, set this in your `.env` file instead (keep `.env` untracked).
 
 3. Run the application:
    ```bash
-   cd Market.API
+   cd src/Market.API
    dotnet run
    ```
 
@@ -167,28 +164,33 @@ using System;
 using System.Collections.Generic;
 
 // 2. Namespace
-namespace Market.API.Repository
+namespace Market.Application.Features.Products
 {
     // 3. Class
-    public class ProductRepository : IProductRepository
+    public class CreateProductCommandHandler : IRequestHandler<CreateProductCommand, ProductResponse>
     {
         // 4. Private fields
-        private readonly IMongoCollection<Product> _collection;
+        private readonly IUnitOfWork _unitOfWork;
         
         // 5. Constructor
-        public ProductRepository(IOptions<MongoDbSettings> settings)
+        public CreateProductCommandHandler(IUnitOfWork unitOfWork, ILogger<CreateProductCommandHandler> logger)
         {
-            _collection = GetCollection(settings);
+            _unitOfWork = unitOfWork;
         }
         
         // 6. Public methods
-        public async Task<IEnumerable<Product>> GetAllAsync()
+        public async Task<ProductResponse> Handle(CreateProductCommand request, CancellationToken cancellationToken)
         {
-            return await _collection.Find(_ => true).ToListAsync();
+            // Validate category exists and is active
+            var category = await _unitOfWork.Categories.GetByIdAsync(request.CategoryId, cancellationToken);
+            if (category == null)
+                throw new KeyNotFoundException($"Category with ID {request.CategoryId} not found");
+
+            return await CreateProductAsync(request, cancellationToken);
         }
         
         // 7. Private methods
-        private IMongoCollection<Product> GetCollection(IOptions<MongoDbSettings> settings)
+        private async Task<ProductResponse> CreateProductAsync(CreateProductCommand request, CancellationToken cancellationToken)
         {
             // Implementation
         }

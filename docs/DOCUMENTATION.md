@@ -329,10 +329,10 @@ See [README.md](../README.md) for project overview
 
 ## Version Compatibility
 
-**Last Updated**: June 3, 2026  
-**API Version**: v2.0.0  
+**Last Updated**: September 29, 2026  
+**API Version**: v3.1+  
 **Framework**: ASP.NET Core 9  
-**Database**: MongoDB 8.2
+**Database**: SQL Server 2022 (with Entity Framework Core 9.0)
 
 ---
 

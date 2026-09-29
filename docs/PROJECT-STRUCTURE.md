@@ -1,6 +1,6 @@
 # Project Structure
 
-Complete directory structure and organization of Market API v2.0+
+Complete directory structure and organization of Market API v3.0+ with Clean Architecture.
 
 ## Root Directory Structure
 
@@ -9,90 +9,112 @@ Market-Api/
 ├── .git/                          # Git repository
 ├── .github/                       # GitHub configuration
 │   ├── workflows/                 # CI/CD workflows
-│   │   ├── docker.yml
-│   │   └── dotnet.yml
+│   │   ├── docker.yml            # Docker image build
+│   │   ├── dotnet.yml            # .NET build and test
+│   │   ├── codeql.yml            # Security analysis
+│   │   └── dotnet-format.yml     # Code formatting
 │   ├── ISSUE_TEMPLATE/           # Issue templates
-│   │   ├── bug_report.md
-│   │   └── feature_request.md
 │   ├── CODE_OF_CONDUCT.md
 │   ├── PULL_REQUEST_TEMPLATE.md
 │   └── dependabot.yml
 ├── .gitignore                    # Git ignore rules
-├── Market.API/                   # Main application folder
-├── docs/                         # Documentation (see below)
-├── LICENSE                       # MIT License
-├── README.md                     # Project overview
+├── src/                          # Source code (4 layers)
+│   ├── Market.Domain/            # Layer 1: Core domain
+│   ├── Market.Application/       # Layer 2: Use cases
+│   ├── Market.Infrastructure/    # Layer 3: Data & external services
+│   └── Market.API/               # Layer 4: Presentation
+├── tests/                        # Test projects
+│   ├── Market.Domain.Tests/
+│   ├── Market.Application.Tests/
+│   ├── Market.Infrastructure.Tests/
+│   ├── Market.API.Tests/
+│   └── Market.Tests.Common/
+├── docs/                         # Documentation
+├── .agent/                       # Agent workflow documentation
+├── .env.example                  # Environment template
 ├── docker-compose.yml            # Docker Compose configuration
 ├── Dockerfile                    # Docker image definition
+├── Market.sln                    # Solution file
+├── LICENSE                       # MIT License
+├── README.md                     # Project overview
 └── CHANGELOG.md                  # Version history
 
 ```
 
-## Market.API Directory Structure
+## Layered Architecture
+
+### 1. Domain Layer (`src/Market.Domain`)
+
+**Responsibility**: Core business logic, no external dependencies.
 
 ```
-Market.API/
-├── bin/                          # Compiled binaries (auto-generated)
-├── obj/                          # Object files (auto-generated)
+Market.Domain/
+├── Entities/                     # Domain entities
+│   ├── BaseEntity.cs            # Base class for all entities
+│   ├── Product.cs               # Product entity
+│   ├── Category.cs              # Category entity
+│   ├── User.cs
+│   ├── Vendor.cs
+│   ├── Order.cs
+│   ├── OrderItem.cs
+│   ├── Cart.cs
+│   ├── CartItem.cs
+│   ├── Review.cs
+│   ├── ReviewImage.cs
+│   ├── ProductTag.cs
+│   └── Tag.cs
 │
-├── Common/                       # Shared utilities
-│   └── BaseEntity.cs            # Base class for all entities
+├── Enums/                        # Domain enumerations
+│   ├── OrderStatus.cs           # Pending, Processing, Shipped, Delivered, Cancelled
+│   ├── PaymentStatus.cs         # Pending, Completed, Failed, Refunded
+│   ├── UserRole.cs              # Customer, Vendor, Admin
+│   ├── ProductStatus.cs         # Active, Inactive, Deleted
+│   └── VendorApprovalStatus.cs  # Pending, Approved, Rejected
 │
-├── Configurations/               # Dependency Injection & Setup
-│   ├── DataConfiguration.cs     # Repository & UnitOfWork DI
-│   ├── MediatRConfiguration.cs  # MediatR handler registration
-│   ├── ServiceConfiguration.cs  # Service layer DI
-│   ├── ValidatorConfiguration.cs # Validator DI
-│   ├── MiddlewareConfiguration.cs # Pipeline setup
-│   └── SwaggerConfiguration.cs  # Swagger/OpenAPI setup
+├── ValueObjects/                # Immutable value objects
+│   ├── Slug.cs                  # URL-safe category slug
+│   ├── Money.cs                 # Price with currency
+│   ├── Email.cs                 # Validated email
+│   └── Tag.cs                   # Product tag
 │
-├── Controllers/                  # HTTP Request Handlers
-│   ├── ProductsController.cs
-│   ├── CategoriesController.cs
-│   ├── UsersController.cs
-│   ├── VendorsController.cs
-│   ├── OrdersController.cs
-│   ├── CartsController.cs
-│   └── ReviewsController.cs
+├── Interfaces/                  # Repository contracts
+│   ├── IRepository.cs           # Generic repository interface (if needed)
+│   ├── IProductRepository.cs
+│   ├── ICategoryRepository.cs
+│   ├── IUserRepository.cs
+│   ├── IVendorRepository.cs
+│   ├── IOrderRepository.cs
+│   ├── ICartRepository.cs
+│   ├── IReviewRepository.cs
+│   └── IUnitOfWork.cs           # Unit of Work interface
 │
-├── Data/                         # Data Access Layer
-│   ├── MongoDbContext.cs        # MongoDB connection & indexes
-│   ├── Interfaces/              # Repository contracts
-│   │   ├── IRepository.cs       # Generic repository interface
-│   │   ├── IProductRepository.cs
-│   │   ├── ICategoryRepository.cs
-│   │   ├── IUserRepository.cs
-│   │   ├── IVendorRepository.cs
-│   │   ├── IOrderRepository.cs
-│   │   ├── ICartRepository.cs
-│   │   └── IReviewRepository.cs
-│   ├── Repositories/            # Repository implementations
-│   │   ├── Repository.cs        # Generic repository base
-│   │   ├── ProductRepository.cs
-│   │   ├── CategoryRepository.cs
-│   │   ├── UserRepository.cs
-│   │   ├── VendorRepository.cs
-│   │   ├── OrderRepository.cs
-│   │   ├── CartRepository.cs
-│   │   └── ReviewRepository.cs
-│   ├── UnitOfWork/              # Coordinated repository access
-│   │   ├── IUnitOfWork.cs      # UnitOfWork interface
-│   │   └── UnitOfWork.cs       # UnitOfWork implementation
-│   ├── Seeds/                   # Sample data
-│   │   └── DataSeeder.cs
-│   └── indexes/                 # MongoDB index definitions
+├── Common/                       # Common domain code
+│   └── Exceptions/              # Custom exceptions
+│       ├── DomainException.cs
+│       └── ValidationException.cs
 │
-├── Features/                     # MediatR Commands & Queries
+└── Market.Domain.csproj         # No external NuGet dependencies
+
+```
+
+### 2. Application Layer (`src/Market.Application`)
+
+**Responsibility**: Use cases, business rules, orchestration. Depends only on Domain.
+
+```
+Market.Application/
+├── Features/                     # Organized by feature (CQRS)
 │   ├── Products/
-│   │   ├── Commands/            # Write operations
+│   │   ├── Commands/
 │   │   │   ├── CreateProductCommand.cs
 │   │   │   ├── UpdateProductCommand.cs
 │   │   │   └── DeleteProductCommand.cs
-│   │   ├── Queries/             # Read operations
+│   │   ├── Queries/
 │   │   │   ├── GetAllProductsQuery.cs
 │   │   │   ├── GetProductByIdQuery.cs
 │   │   │   └── GetProductsByCategoryQuery.cs
-│   │   └── ProductResponse.cs   # Response DTO
+│   │   ├── ProductResponse.cs   # Response DTO
+│   │   └── ProductValidator.cs  # FluentValidation rules
 │   │
 │   ├── Categories/
 │   │   ├── Commands/
@@ -102,334 +124,256 @@ Market.API/
 │   │   ├── Queries/
 │   │   │   ├── GetAllCategoriesQuery.cs
 │   │   │   └── GetCategoryByIdQuery.cs
-│   │   └── CategoryResponse.cs
-│   │
-│   ├── Users/
-│   │   ├── Commands/
-│   │   │   ├── CreateUserCommand.cs
-│   │   │   ├── UpdateUserCommand.cs
-│   │   │   └── DeleteUserCommand.cs
-│   │   ├── Queries/
-│   │   │   ├── GetAllUsersQuery.cs
-│   │   │   └── GetUserByIdQuery.cs
-│   │   └── UserResponse.cs
-│   │
-│   ├── Vendors/
-│   │   ├── Commands/
-│   │   │   ├── CreateVendorCommand.cs
-│   │   │   ├── UpdateVendorCommand.cs
-│   │   │   ├── DeleteVendorCommand.cs
-│   │   │   └── ApproveVendorCommand.cs
-│   │   ├── Queries/
-│   │   │   ├── GetAllVendorsQuery.cs
-│   │   │   └── GetVendorByIdQuery.cs
-│   │   └── VendorResponse.cs
+│   │   ├── CategoryResponse.cs
+│   │   └── CategoryValidator.cs
 │   │
 │   ├── Orders/
-│   │   ├── Commands/
-│   │   │   ├── CreateOrderCommand.cs
-│   │   │   ├── UpdateOrderCommand.cs
-│   │   │   └── DeleteOrderCommand.cs
-│   │   ├── Queries/
-│   │   │   ├── GetAllOrdersQuery.cs
-│   │   │   └── GetOrderByIdQuery.cs
-│   │   └── OrderResponse.cs
-│   │
+│   ├── Users/
+│   ├── Vendors/
 │   ├── Carts/
-│   │   ├── Commands/
-│   │   │   ├── AddToCartCommand.cs
-│   │   │   ├── RemoveFromCartCommand.cs
-│   │   │   └── ClearCartCommand.cs
-│   │   ├── Queries/
-│   │   │   └── GetCartByUserIdQuery.cs
-│   │   └── CartResponse.cs
+│   └── Reviews/
+│
+├── Validators/                   # Shared validators
+│   └── (feature-specific validators in each feature folder)
+│
+├── DTOs/                         # Shared response models
+│   └── (most DTOs in feature folders)
+│
+├── Abstractions/                 # Interfaces and abstractions
+│   └── Services/                 # (if needed for cross-feature logic)
+│
+├── Middleware/                   # MediatR pipeline behaviors
+│   ├── ValidationBehavior.cs    # Automatic validation
+│   ├── LoggingBehavior.cs       # Request/response logging
+│   └── ExceptionHandlingBehavior.cs
+│
+├── GlobalUsings.cs             # Common using statements
+└── Market.Application.csproj   # Dependencies: Domain, FluentValidation, MediatR
+
+```
+
+### 3. Infrastructure Layer (`src/Market.Infrastructure`)
+
+**Responsibility**: Data access, external services, persistence. Implements Domain interfaces.
+
+```
+Market.Infrastructure/
+├── Data/                         # EF Core database layer
+│   ├── MarketDbContext.cs       # DbContext for SQL Server
+│   ├── EntityConfigurations/    # FluentAPI configurations
+│   │   ├── ProductConfiguration.cs
+│   │   ├── CategoryConfiguration.cs
+│   │   ├── UserConfiguration.cs
+│   │   ├── VendorConfiguration.cs
+│   │   ├── OrderConfiguration.cs
+│   │   ├── OrderItemConfiguration.cs
+│   │   ├── CartConfiguration.cs
+│   │   ├── CartItemConfiguration.cs
+│   │   ├── ReviewConfiguration.cs
+│   │   ├── ReviewImageConfiguration.cs
+│   │   ├── ProductTagConfiguration.cs
+│   │   └── UserConfiguration.cs
 │   │
-│   ├── Reviews/
-│   │   ├── Commands/
-│   │   │   ├── CreateReviewCommand.cs
-│   │   │   ├── UpdateReviewCommand.cs
-│   │   │   └── DeleteReviewCommand.cs
-│   │   ├── Queries/
-│   │   │   ├── GetAllReviewsQuery.cs
-│   │   │   └── GetReviewsByProductIdQuery.cs
-│   │   └── ReviewResponse.cs
+│   └── Seeds/                   # Initial data seeds
+│       └── DataSeeder.cs
+│
+├── Persistence/                  # Repository implementations
+│   ├── Repositories/
+│   │   ├── ProductRepository.cs  # Implements IProductRepository
+│   │   ├── CategoryRepository.cs
+│   │   ├── UserRepository.cs
+│   │   ├── VendorRepository.cs
+│   │   ├── OrderRepository.cs
+│   │   ├── CartRepository.cs
+│   │   ├── ReviewRepository.cs
+│   │   └── BaseRepository.cs    # Generic repository base (if needed)
 │   │
-│   └── MEDIATOR_STRUCTURE.md   # MediatR structure documentation
+│   └── UnitOfWork/
+│       └── UnitOfWork.cs        # Implements IUnitOfWork
 │
-├── Middleware/                   # HTTP Pipeline Middleware
-│   └── ValidationMiddleware.cs  # Validation exception handler
+├── Services/                     # External services
+│   └── (e.g., EmailService, PaymentService, etc.)
 │
-├── Models/
-│   ├── Entities/                # Domain models
-│   │   ├── Product.cs
-│   │   ├── Category.cs
-│   │   ├── User.cs
-│   │   ├── Vendor.cs
-│   │   ├── Order.cs
-│   │   ├── Cart.cs
-│   │   ├── CartItem.cs
-│   │   ├── Review.cs
-│   │   ├── OrderItem.cs
-│   │   └── BaseEntity.cs
-│   ├── Enums/                   # Enumeration types
-│   │   ├── OrderStatus.cs
-│   │   ├── PaymentStatus.cs
-│   │   └── UserRole.cs
-│   └── ValueObjects/            # Value objects
-│       └── Slug.cs
+├── Migrations/                   # EF Core migrations
+│   ├── 202409220000_InitialCreate.cs
+│   ├── 202409220100_AddCategoryConstraints.cs
+│   └── ...
 │
-├── Services/                     # Business Logic Layer
-│   ├── ProductService.cs
-│   ├── CategoryService.cs
-│   ├── UserService.cs
-│   ├── VendorService.cs
-│   ├── OrderService.cs
-│   ├── CartService.cs
-│   ├── ReviewService.cs
-│   └── Interfaces/              # Service contracts
-│       ├── IProductService.cs
-│       ├── ICategoryService.cs
-│       ├── IUserService.cs
-│       ├── IVendorService.cs
-│       ├── IOrderService.cs
-│       ├── ICartService.cs
-│       └── IReviewService.cs
-│
-├── Settings/                     # Configuration models
-│   └── MongoDbSettings.cs       # MongoDB connection settings
-│
-├── Validators/                   # Validation framework
-│   ├── IValidator.cs            # Validator interface
-│   ├── ValidationResult.cs      # Validation result DTO
-│   ├── ValidationError.cs       # Validation error DTO
-│   ├── ProductValidator.cs
-│   ├── CategoryValidator.cs
-│   ├── UserValidator.cs
-│   ├── VendorValidator.cs
-│   ├── OrderValidator.cs
-│   ├── CartValidator.cs
-│   └── ReviewValidator.cs
-│
-├── Program.cs                    # Application entry point
-├── appsettings.json             # Configuration (local)
-├── appsettings.Development.json # Development configuration
-├── Market.API.csproj            # Project file
-└── Properties/
-    └── launchSettings.json      # Launch profiles
+├── DependencyInjection.cs       # Service registration extension
+└── Market.Infrastructure.csproj # Dependencies: Application, Domain, EF Core, SQL Server
 
 ```
 
-## Docs Directory Structure
+### 4. API Layer (`src/Market.API`)
 
-```
-docs/
-├── API.md                    # REST API endpoint reference
-├── ARCHITECTURE.md           # System design & patterns
-├── CHANGELOG.md              # Version history
-├── CONTRIBUTING.md           # Contribution guidelines
-├── DOCKER.md                 # Docker setup guide
-├── DOCUMENTATION.md          # Navigation guide (master index)
-├── IMPLEMENTATION.md         # Code patterns & examples
-└── PROJECT-STRUCTURE.md      # This file (directory structure)
-
-```
-
-## .github Directory Structure
-
-```
-.github/
-├── workflows/
-│   ├── docker.yml           # Docker build & push workflow
-│   └── dotnet.yml           # .NET build & test workflow
-├── ISSUE_TEMPLATE/
-│   ├── bug_report.md        # Bug report template
-│   └── feature_request.md   # Feature request template
-├── CODE_OF_CONDUCT.md       # Community code of conduct
-├── PULL_REQUEST_TEMPLATE.md # PR template
-└── dependabot.yml           # Dependency update automation
-
-```
-
-## Detailed Layer Descriptions
-
-### 1. Controllers Layer (`Controllers/`)
-- HTTP request handlers
-- Route definitions
-- Response formatting
-- Delegates to MediatR
-
-**Pattern**: One controller per entity
-
-### 2. MediatR Layer (`Features/`)
-- Command handlers (Create, Update, Delete)
-- Query handlers (Get, Filter)
-- Response DTOs
-- Request/Response mapping
-
-**Pattern**: `Entity/Commands/` and `Entity/Queries/` organization
-
-### 3. Service Layer (`Services/`)
-- Business logic
-- Validation
-- Logging
-- Cross-cutting concerns
-
-**Pattern**: Interface-first design with dependency injection
-
-### 4. Repository Layer (`Data/Repositories/`)
-- Data access abstraction
-- Generic CRUD operations
-- Entity-specific queries
-- MongoDB operations
-
-**Pattern**: Generic repository + specific repositories
-
-### 5. Data Layer (`Data/`)
-- Entity definitions (in `Models/Entities/`)
-- MongoDB context
-- Index creation
-- Connection management
-
-**Pattern**: Unit of Work coordinating repositories
-
-### 6. Validation Layer (`Validators/`)
-- Entity validation rules
-- Custom validation logic
-- Error messages
-
-**Pattern**: Validator interface implementation
-
-### 7. Configuration Layer (`Configurations/`)
-- Dependency injection setup
-- Middleware configuration
-- Service registration
-
-**Pattern**: Extension methods for fluent setup
-
-## Key Organizational Principles
-
-### 1. **By Feature**
-- Each entity has its own folder in `Features/`
-- Related commands and queries grouped together
-- Reduces complexity for large projects
-
-### 2. **By Layer**
-- Controllers, Services, Repositories in separate folders
-- Clear separation of concerns
-- Easy to locate code by responsibility
-
-### 3. **By Type**
-- Commands, Queries, DTOs separated
-- Middleware, Validators in dedicated folders
-- Configuration organized centrally
-
-## File Naming Conventions
-
-| Type | Naming Pattern | Example |
-|------|---|---|
-| Controllers | `[Entity]Controller.cs` | `ProductsController.cs` |
-| Services | `[Entity]Service.cs` | `ProductService.cs` |
-| Service Interfaces | `I[Entity]Service.cs` | `IProductService.cs` |
-| Repositories | `[Entity]Repository.cs` | `ProductRepository.cs` |
-| Repository Interfaces | `I[Entity]Repository.cs` | `IProductRepository.cs` |
-| Commands | `[Action][Entity]Command.cs` | `CreateProductCommand.cs` |
-| Queries | `Get[Criteria][Entity]Query.cs` | `GetProductByIdQuery.cs` |
-| DTOs | `[Entity]Response.cs` | `ProductResponse.cs` |
-| Validators | `[Entity]Validator.cs` | `ProductValidator.cs` |
-| Middleware | `[Name]Middleware.cs` | `ValidationMiddleware.cs` |
-| Configurations | `[Category]Configuration.cs` | `ServiceConfiguration.cs` |
-
-## Common File Locations
-
-### To find a specific feature:
-```
-Features/[Entity]/Commands/Create[Entity]Command.cs
-Features/[Entity]/Queries/Get[Entity]Query.cs
-Features/[Entity]/[Entity]Response.cs
-```
-
-### To find business logic:
-```
-Services/[Entity]Service.cs
-Services/Interfaces/I[Entity]Service.cs
-```
-
-### To find data access:
-```
-Data/Repositories/[Entity]Repository.cs
-Data/Interfaces/I[Entity]Repository.cs
-```
-
-### To find validation:
-```
-Validators/[Entity]Validator.cs
-```
-
-### To find HTTP routes:
-```
-Controllers/[Entity]Controller.cs
-```
-
-## Build Output
-
-After building, these directories are generated:
+**Responsibility**: HTTP endpoints, middleware, orchestration. Thin presentation layer.
 
 ```
 Market.API/
-├── bin/
-│   ├── Debug/
-│   │   └── net9.0/          # Debug build output
-│   └── Release/             # Release build output
-├── obj/                     # Intermediate build files
-└── Properties/
-    └── PublishProfiles/     # Publishing configurations
+├── Controllers/                  # HTTP endpoints
+│   ├── ProductsController.cs
+│   ├── CategoriesController.cs
+│   ├── UsersController.cs
+│   ├── VendorsController.cs
+│   ├── OrdersController.cs
+│   ├── CartsController.cs
+│   └── ReviewsController.cs
+│
+├── Middleware/                   # HTTP middleware
+│   ├── ExceptionHandlingMiddleware.cs
+│   ├── LoggingMiddleware.cs
+│   └── CorsMiddleware.cs
+│
+├── Filters/                      # Action filters
+│   └── ValidationFilter.cs
+│
+├── appsettings.json             # Configuration (sensitive values via user-secrets)
+├── appsettings.Development.json
+├── appsettings.Production.json
+│
+├── Program.cs                    # Composition root and startup
+│
+└── Market.API.csproj            # Dependencies: Application, Infrastructure, Domain
+
 ```
 
-## Package & Project Files
-
-- **Market.API.csproj** - C# project file with dependencies
-- **appsettings.json** - Default configuration
-- **appsettings.Development.json** - Development-specific config
-- **appsettings.Production.json** - Production-specific config
-
-## Docker Structure
+## Test Projects Structure
 
 ```
-Repository Root/
-├── Dockerfile              # Multi-stage build for .NET app
-├── docker-compose.yml      # Compose configuration
-│   ├── market-api service  # ASP.NET Core API
-│   └── mongodb service     # MongoDB database
-└── .dockerignore           # Docker exclusions
+tests/
+├── Market.Domain.Tests/
+│   ├── Entities/                # Entity and value object tests
+│   ├── Enums/
+│   └── Market.Domain.Tests.csproj
+│
+├── Market.Application.Tests/
+│   ├── Features/
+│   │   ├── Products/
+│   │   ├── Categories/
+│   │   └── ...
+│   ├── Validators/
+│   ├── GlobalUsings.cs
+│   └── Market.Application.Tests.csproj
+│
+├── Market.Infrastructure.Tests/
+│   ├── Data/
+│   ├── Persistence/
+│   └── Market.Infrastructure.Tests.csproj
+│
+├── Market.API.Tests/
+│   ├── Controllers/
+│   └── Market.API.Tests.csproj
+│
+└── Market.Tests.Common/
+    ├── Fixtures/               # Test data and mocks
+    ├── Builders/               # Test object builders
+    └── Market.Tests.Common.csproj
+
 ```
 
 ## Documentation Structure
 
-All user-facing documentation is in `/docs/`:
-- API reference
-- Architecture guide
-- Implementation guide
-- Contribution guidelines
-- Docker/deployment guide
-- Project structure (this file)
+```
+docs/
+├── README.md                    # (via root README.md)
+├── API.md                       # REST API endpoint reference
+├── ARCHITECTURE.md              # 4-layer design and patterns
+├── IMPLEMENTATION.md            # Hands-on code guide
+├── CONTRIBUTING.md              # Development guidelines
+├── DOCKER.md                    # Container setup
+├── TESTING.md                   # Testing guide
+├── PROJECT-STRUCTURE.md         # This file
+├── CHANGELOG.md                 # Version history
+├── DOCUMENTATION.md             # Documentation overview
+├── LOCALDB-SETUP.md            # Local database setup
+├── workflows-Functional/
+│   └── OrderWorkflow.md         # Order processing flow
+└── fixs/                        # Historical fix reports
+    ├── first-fix.md
+    ├── issue-5-cart-price-vulnerability.md
+    └── PR.md
 
-See **[docs/DOCUMENTATION.md](DOCUMENTATION.md)** for navigation guide.
+```
 
-## Summary Statistics
+## Entity Relationships
 
-| Category | Count |
-|----------|-------|
-| Entity Models | 8 |
-| Controllers | 7 |
-| Services | 7 |
-| Repositories | 7 |
-| Validators | 7 |
-| Commands | 19+ |
-| Queries | 12+ |
-| Middleware | 1 |
-| Configurations | 6 |
-| Documentation Files | 8 |
+```
+User (1) ──────────── (Many) Vendor
+         ├─ User.Id
+         └─ Vendor.UserId
 
----
+Category (1) ────────── (Many) Product
+            ├─ Category.Id (PK)
+            └─ Product.CategoryId (FK)
 
-For navigation and understanding where to find things, refer to **[docs/DOCUMENTATION.md](DOCUMENTATION.md)** or the quick table above.
+Vendor (1) ──────────── (Many) Product
+          ├─ Vendor.Id
+          └─ Product.VendorId (FK)
+
+Product (1) ────────── (Many) CartItem
+           ├─ Product.Id
+           └─ CartItem.ProductId (FK)
+
+User (1) ──────────── (Many) Cart
+        ├─ User.Id
+        └─ Cart.UserId (FK)
+
+Order (1) ──────────── (Many) OrderItem
+         ├─ Order.Id
+         └─ OrderItem.OrderId (FK)
+
+Product (1) ────────── (Many) OrderItem
+           ├─ Product.Id
+           └─ OrderItem.ProductId (FK)
+
+Product (1) ────────── (Many) Review
+           ├─ Product.Id
+           └─ Review.ProductId (FK)
+
+Vendor (1) ──────────── (Many) Review
+          ├─ Vendor.Id
+          └─ Review.VendorId (FK)
+
+Review (1) ──────────── (Many) ReviewImage
+          ├─ Review.Id
+          └─ ReviewImage.ReviewId (FK)
+```
+
+## Database Schema
+
+**SQL Server** tables:
+- Users, Vendors, Products, Categories, ProductTags, Tags
+- Orders, OrderItems, Carts, CartItems
+- Reviews, ReviewImages
+- Migrations history table (auto-created by EF Core)
+
+**Soft-delete column**: `IsDeleted` (bit, default 0) on most tables
+**Audit columns**: `CreatedAt` (datetime2), `UpdatedAt` (datetime2, nullable)
+**Concurrency**: `RowVersion` (rowversion) on Product table for inventory updates
+
+## Build Artifacts
+
+```
+bin/                              # Compiled outputs
+├── Debug/
+│   └── net9.0/                  # .NET 9 binaries
+│       ├── *.dll
+│       └── *.exe
+└── Release/
+    └── net9.0/
+
+obj/                              # Intermediate files (auto-generated)
+```
+
+## Key Points
+
+1. **Strict layering** - Each layer depends on layers below only
+2. **Domain is independent** - No external dependencies
+3. **Application is orchestration** - Commands/Queries delegate to repositories
+4. **Infrastructure is implementation** - DbContext, repositories, EF Core
+5. **API is thin** - Just route handling, delegates to MediatR
+6. **EF Core DbContext** - Centralized in Infrastructure layer
+7. **Tests are parallel** - One test project per source layer
+8. **Migrations are tracked** - In Infrastructure/Migrations folder
+9. **Configuration is externalized** - Via user-secrets and environment variables
+10. **No circular dependencies** - Always depends on abstractions, not implementations
