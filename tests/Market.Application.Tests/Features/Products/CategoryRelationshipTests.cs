@@ -39,6 +39,7 @@ public class CategoryRelationshipTests
         var productRepo = new Mock<IProductRepository>(MockBehavior.Strict);
         var vendorRepo = new Mock<IVendorRepository>(MockBehavior.Strict);
         var categoryRepo = new Mock<ICategoryRepository>(MockBehavior.Strict);
+        var productValidator = new Mock<IValidator<Product>>(MockBehavior.Loose);
 
         unitOfWork.SetupGet(u => u.Products).Returns(productRepo.Object);
         unitOfWork.SetupGet(u => u.Vendors).Returns(vendorRepo.Object);
@@ -46,9 +47,12 @@ public class CategoryRelationshipTests
         unitOfWork.Setup(u => u.SaveAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         productRepo.Setup(r => r.CreateAsync(It.IsAny<Product>(), It.IsAny<CancellationToken>()))
             .Returns((Product p, CancellationToken ct) => Task.FromResult(p));
+        productValidator.Setup(v => v.Validate(It.IsAny<Product>()))
+            .Returns(new ValidationResult());
 
         var handler = new CreateProductCommandHandler(
             unitOfWork.Object,
+            productValidator.Object,
             NullLogger<CreateProductCommandHandler>.Instance);
 
         return (unitOfWork, productRepo, vendorRepo, categoryRepo, handler);
@@ -65,6 +69,7 @@ public class CategoryRelationshipTests
         var productRepo = new Mock<IProductRepository>(MockBehavior.Strict);
         var vendorRepo = new Mock<IVendorRepository>(MockBehavior.Strict);
         var categoryRepo = new Mock<ICategoryRepository>(MockBehavior.Strict);
+        var productValidator = new Mock<IValidator<Product>>(MockBehavior.Loose);
 
         unitOfWork.SetupGet(u => u.Products).Returns(productRepo.Object);
         unitOfWork.SetupGet(u => u.Vendors).Returns(vendorRepo.Object);
@@ -72,9 +77,12 @@ public class CategoryRelationshipTests
         unitOfWork.Setup(u => u.SaveAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         productRepo.Setup(r => r.UpdateAsync(It.IsAny<Product>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+        productValidator.Setup(v => v.Validate(It.IsAny<Product>()))
+            .Returns(new ValidationResult());
 
         var handler = new UpdateProductInternalCommandHandler(
             unitOfWork.Object,
+            productValidator.Object,
             NullLogger<UpdateProductInternalCommandHandler>.Instance);
 
         return (unitOfWork, productRepo, vendorRepo, categoryRepo, handler);
