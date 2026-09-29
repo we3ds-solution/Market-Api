@@ -1,3 +1,19 @@
+# [3.1.0](https://github.com/Mostafa-SAID7/Market-Api/compare/v3.0.4...v3.1.0) (2026-09-29)
+
+
+### Bug Fixes
+
+* **category:** enforce product category relationship and active state validation ([16f42fa](https://github.com/Mostafa-SAID7/Market-Api/commit/16f42fa4b00dd9a8dcf2f608fae3f5c0558f4854))
+* **orders:** calculate order pricing server-side ([8320bf7](https://github.com/Mostafa-SAID7/Market-Api/commit/8320bf794e3c727eac3a7197688df5764b148a16))
+* **test:** add missing using statements for Moq and Xunit ([9c0a2d7](https://github.com/Mostafa-SAID7/Market-Api/commit/9c0a2d748dfeee97b2729f183af716d60953b089))
+* **test:** make ReviewDuplicationTests class static to resolve extension method error ([dc7cf3d](https://github.com/Mostafa-SAID7/Market-Api/commit/dc7cf3d3cebfc51217ebb1ff496dbb15246b7f8f))
+* **test:** revert ReviewDuplicationTests to public class (not static) ([c38018e](https://github.com/Mostafa-SAID7/Market-Api/commit/c38018e4680508b4b0268f55dadb3d9eb055d32c))
+
+
+### Features
+
+* add core e-commerce domain entities, application features, API controllers, and unit tests for products, carts, orders, vendors, and reviews ([38cc490](https://github.com/Mostafa-SAID7/Market-Api/commit/38cc490deec16b95c86a8c6438d5be320e8152ae))
+
 ## [3.0.4](https://github.com/Mostafa-SAID7/Market-Api/compare/v3.0.3...v3.0.4) (2026-09-24)
 
 
