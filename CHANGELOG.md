@@ -1,3 +1,10 @@
+## [3.2.1](https://github.com/Mostafa-SAID7/Market-Api/compare/v3.2.0...v3.2.1) (2026-09-29)
+
+
+### Bug Fixes
+
+* **Issue#13:** Category Relationship & Data Integrity - Add FK Restrict enforcement and category validation - Enhance DeleteCategoryInternalCommandHandler to verify no Products reference Category before soft-deleting - Add application-level FK Restrict enforcement with meaningful error messages - Enhance GetProductsByCategoryQuery to validate category exists and is active - Prevent returning products for non-existent or inactive categories - Add test case: DeleteCategory_FailsWhenProductsReferenceIt for FK Restrict coverage - Update test helper BuildDeleteCategoryHandler to mock ProductRepository - Confirm all Category/Product immutability constraints enforced - Verify historical OrderItems remain independent of Category changes - No breaking changes, backward compatible enhancements only - Issues [#1](https://github.com/Mostafa-SAID7/Market-Api/issues/1)-[#12](https://github.com/Mostafa-SAID7/Market-Api/issues/12) integrity preserved ([b9c0b28](https://github.com/Mostafa-SAID7/Market-Api/commit/b9c0b282f730046d6bcaeae307873d64e1d7e705)), closes [Issue#13](https://github.com/Issue/issues/13)
+
 # [3.2.0](https://github.com/Mostafa-SAID7/Market-Api/compare/v3.1.1...v3.2.0) (2026-09-29)
 
 
