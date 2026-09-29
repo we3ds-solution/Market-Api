@@ -1,3 +1,10 @@
+## [3.2.2](https://github.com/Mostafa-SAID7/Market-Api/compare/v3.2.1...v3.2.2) (2026-09-29)
+
+
+### Bug Fixes
+
+* Use ErrorMessage instead of Message for ValidationFailure in product commands - Fixed CreateProductCommand to use error.ErrorMessage - Fixed UpdateProductCommand to use error.ErrorMessage - FluentValidation ValidationFailure uses ErrorMessage property, not Message - Resolves CS1061 compilation errors in Release build ([76ed12d](https://github.com/Mostafa-SAID7/Market-Api/commit/76ed12d53ff087bb860835b3f5e7f00ee26caf30))
+
 ## [3.2.1](https://github.com/Mostafa-SAID7/Market-Api/compare/v3.2.0...v3.2.1) (2026-09-29)
 
 
