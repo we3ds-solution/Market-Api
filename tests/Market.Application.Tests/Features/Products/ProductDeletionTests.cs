@@ -26,7 +26,7 @@ public class ProductDeletionTests
     // Helpers
     // -----------------------------------------------------------------------
 
-    private static (Mock<IUnitOfWork> unitOfWork, Mock<IProductRepository> productRepo, DeleteProductInternalCommandHandler handler) BuildDeleteHandler()
+    private static (Mock<IUnitOfWork> unitOfWork, Mock<IProductRepository> productRepo, DeleteProductCommandHandler handler) BuildDeleteHandler()
     {
         var unitOfWork = new Mock<IUnitOfWork>(MockBehavior.Strict);
         var productRepo = new Mock<IProductRepository>(MockBehavior.Strict);
@@ -36,9 +36,9 @@ public class ProductDeletionTests
         productRepo.Setup(r => r.UpdateAsync(It.IsAny<Product>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var handler = new DeleteProductInternalCommandHandler(
+        var handler = new DeleteProductCommandHandler(
             unitOfWork.Object,
-            NullLogger<DeleteProductInternalCommandHandler>.Instance);
+            NullLogger<DeleteProductCommandHandler>.Instance);
 
         return (unitOfWork, productRepo, handler);
     }
@@ -72,7 +72,7 @@ public class ProductDeletionTests
         productRepo.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>()))
             .ReturnsAsync(product);
 
-        var command = new DeleteProductInternalCommand { Id = 1 };
+        var command = new DeleteProductCommand { Id = 1 };
 
         // Act
         var result = await handler.Handle(command, CancellationToken.None);
@@ -138,7 +138,7 @@ public class ProductDeletionTests
         productRepo.Setup(r => r.GetByIdAsync(2, It.IsAny<CancellationToken>()))
             .ReturnsAsync(product);
 
-        var command = new DeleteProductInternalCommand { Id = 2 };
+        var command = new DeleteProductCommand { Id = 2 };
 
         // Act
         var result = await handler.Handle(command, CancellationToken.None);
@@ -327,7 +327,7 @@ public class ProductDeletionTests
         productRepo.Setup(r => r.GetByIdAsync(6, It.IsAny<CancellationToken>()))
             .ReturnsAsync(product);
 
-        var command = new DeleteProductInternalCommand { Id = 6 };
+        var command = new DeleteProductCommand { Id = 6 };
 
         // Act
         var result = await handler.Handle(command, CancellationToken.None);
@@ -396,7 +396,7 @@ public class ProductDeletionTests
         productRepo.Setup(r => r.GetByIdAsync(7, It.IsAny<CancellationToken>()))
             .ReturnsAsync(product);
 
-        var command = new DeleteProductInternalCommand { Id = 7 };
+        var command = new DeleteProductCommand { Id = 7 };
 
         // Act
         var result = await handler.Handle(command, CancellationToken.None);
@@ -451,7 +451,7 @@ public class ProductDeletionTests
         productRepo.Setup(r => r.GetByIdAsync(8, It.IsAny<CancellationToken>()))
             .ReturnsAsync(product);
 
-        var command = new DeleteProductInternalCommand { Id = 8 };
+        var command = new DeleteProductCommand { Id = 8 };
 
         // Act
         var result = await handler.Handle(command, CancellationToken.None);
@@ -499,7 +499,7 @@ public class ProductDeletionTests
         productRepo.Setup(r => r.GetByIdAsync(9, It.IsAny<CancellationToken>()))
             .ReturnsAsync(product);
 
-        var command = new DeleteProductInternalCommand { Id = 9 };
+        var command = new DeleteProductCommand { Id = 9 };
 
         // Act
         var result = await handler.Handle(command, CancellationToken.None);
@@ -529,7 +529,7 @@ public class ProductDeletionTests
         productRepo.Setup(r => r.GetByIdAsync(999, It.IsAny<CancellationToken>()))
             .ReturnsAsync((Product?)null);
 
-        var command = new DeleteProductInternalCommand { Id = 999 };
+        var command = new DeleteProductCommand { Id = 999 };
 
         // Act & Assert
         var ex = await Assert.ThrowsAsync<KeyNotFoundException>(
@@ -557,7 +557,7 @@ public class ProductDeletionTests
         productRepo.Setup(r => r.GetByIdAsync(10, It.IsAny<CancellationToken>()))
             .ReturnsAsync((Product?)null);
 
-        var command = new DeleteProductInternalCommand { Id = 10 };
+        var command = new DeleteProductCommand { Id = 10 };
 
         // Act & Assert
         var ex = await Assert.ThrowsAsync<KeyNotFoundException>(
