@@ -1,3 +1,10 @@
+# [3.2.0](https://github.com/Mostafa-SAID7/Market-Api/compare/v3.1.1...v3.2.0) (2026-09-29)
+
+
+### Features
+
+* **categories:** filter active categories in query and add product validation test suites ([fe1a61a](https://github.com/Mostafa-SAID7/Market-Api/commit/fe1a61ab648cd8cd9df40f3c70bc7e85983547bc))
+
 ## [3.1.1](https://github.com/Mostafa-SAID7/Market-Api/compare/v3.1.0...v3.1.1) (2026-09-29)
 
 
