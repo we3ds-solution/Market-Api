@@ -41,6 +41,14 @@ namespace Market.Infrastructure.Data.EntityConfigurations
             builder.Property(p => p.AverageRating)
                 .HasPrecision(3, 2);  // Ratings are stored exactly to two decimal places.
 
+            /// <summary>
+            /// Configure row version for optimistic concurrency control on inventory updates.
+            /// SQL Server automatically manages the rowversion type.
+            /// EF Core uses this in WHERE clause during UPDATE to detect concurrent modifications.
+            /// </summary>
+            builder.Property(p => p.RowVersion)
+                .IsRowVersion();
+
             // Indexes
             builder.HasIndex(p => p.VendorId);
             builder.HasIndex(p => p.CategoryId);

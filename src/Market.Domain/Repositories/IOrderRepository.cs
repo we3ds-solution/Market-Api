@@ -37,6 +37,18 @@ namespace Market.Domain.Repositories
         /// Get recent orders
         /// </summary>
         Task<IEnumerable<Order>> GetRecentOrdersAsync(int count = 50, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Check if customer has a verified purchase of a specific product.
+        /// A verified purchase is an order with:
+        /// - OrderStatus == Delivered (completed)
+        /// - PaymentStatus == Completed (payment succeeded)
+        /// - OrderItems contains the product
+        /// </summary>
+        Task<bool> CustomerHasVerifiedPurchaseOfProductAsync(
+            int customerId,
+            int productId,
+            CancellationToken cancellationToken = default);
     }
 }
 

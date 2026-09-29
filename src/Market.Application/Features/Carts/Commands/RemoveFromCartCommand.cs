@@ -1,3 +1,4 @@
+using Market.Application.Abstractions.Services;
 using Market.Domain.Repositories;
 using MediatR;
 using Microsoft.Extensions.Logging;
@@ -18,11 +19,13 @@ namespace Market.Application.Features.Carts.Commands
     /// </summary>
     public class RemoveFromCartCommandHandler : IRequestHandler<RemoveFromCartCommand, CartResponse>
     {
+        private readonly ICurrentUserService _currentUserService;
         private readonly IUnitOfWork _unitOfWork;
         private readonly ILogger<RemoveFromCartCommandHandler> _logger;
 
-        public RemoveFromCartCommandHandler(IUnitOfWork unitOfWork, ILogger<RemoveFromCartCommandHandler> logger)
+        public RemoveFromCartCommandHandler(ICurrentUserService currentUserService, IUnitOfWork unitOfWork, ILogger<RemoveFromCartCommandHandler> logger)
         {
+            _currentUserService = currentUserService;
             _unitOfWork = unitOfWork;
             _logger = logger;
         }
@@ -31,6 +34,15 @@ namespace Market.Application.Features.Carts.Commands
         {
             _logger.LogInformation("Handling RemoveFromCartCommand for user: {UserId}, product: {ProductId}",
                 request.UserId, request.ProductId);
+
+            // Ownership check: reject if client tries to modify different user's cart
+            var authenticatedUserId = _currentUserService.GetCurrentUserId();
+            if (request.UserId != authenticatedUserId)
+            {
+                _logger.LogWarning("Unauthorized cart access attempt: user {AuthenticatedUserId} tried to modify cart for user {RequestedUserId}",
+                    authenticatedUserId, request.UserId);
+                throw new UnauthorizedAccessException($"Cannot modify cart for user {request.UserId}");
+            }
 
             // Get or create cart for user
             var cart = await _unitOfWork.Carts.GetByUserIdAsync(request.UserId)

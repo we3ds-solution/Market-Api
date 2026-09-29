@@ -31,12 +31,15 @@ namespace Market.Application.Features.Orders.Commands
         {
             _logger.LogInformation("Updating order {OrderId} status to {Status}", request.Id, request.Status);
 
-            var order = await _unitOfWork.Orders.GetByIdAsync(request.Id);
+            var order = await _unitOfWork.Orders.GetByIdAsync(request.Id, cancellationToken);
             if (order == null)
                 throw new KeyNotFoundException($"Order with ID {request.Id} not found");
 
+            // Validate state transition before mutating
+            order.ValidateOrderStatusTransition(request.Status);
+
             order.OrderStatus = request.Status;
-            await _unitOfWork.Orders.UpdateAsync(order);
+            await _unitOfWork.Orders.UpdateAsync(order, cancellationToken);
             await _unitOfWork.SaveAsync(cancellationToken);
 
             return MapToResponse(order);

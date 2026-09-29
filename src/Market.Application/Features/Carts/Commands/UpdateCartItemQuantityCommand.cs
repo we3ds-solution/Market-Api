@@ -1,3 +1,4 @@
+using Market.Application.Abstractions.Services;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
@@ -18,11 +19,13 @@ namespace Market.Application.Features.Carts.Commands
     /// </summary>
     public class UpdateCartItemQuantityCommandHandler : IRequestHandler<UpdateCartItemQuantityCommand, CartResponse>
     {
+        private readonly ICurrentUserService _currentUserService;
         private readonly IUnitOfWork _unitOfWork;
         private readonly ILogger<UpdateCartItemQuantityCommandHandler> _logger;
 
-        public UpdateCartItemQuantityCommandHandler(IUnitOfWork unitOfWork, ILogger<UpdateCartItemQuantityCommandHandler> logger)
+        public UpdateCartItemQuantityCommandHandler(ICurrentUserService currentUserService, IUnitOfWork unitOfWork, ILogger<UpdateCartItemQuantityCommandHandler> logger)
         {
+            _currentUserService = currentUserService;
             _unitOfWork = unitOfWork;
             _logger = logger;
         }
@@ -31,6 +34,15 @@ namespace Market.Application.Features.Carts.Commands
         {
             _logger.LogInformation("Updating cart item quantity for user {UserId}, product {ProductId} to {Quantity}",
                 request.UserId, request.ProductId, request.Quantity);
+
+            // Ownership check: reject if client tries to modify different user's cart
+            var authenticatedUserId = _currentUserService.GetCurrentUserId();
+            if (request.UserId != authenticatedUserId)
+            {
+                _logger.LogWarning("Unauthorized cart access attempt: user {AuthenticatedUserId} tried to modify cart for user {RequestedUserId}",
+                    authenticatedUserId, request.UserId);
+                throw new UnauthorizedAccessException($"Cannot modify cart for user {request.UserId}");
+            }
 
             if (request.Quantity <= 0)
                 throw new ArgumentException("Quantity must be greater than 0", nameof(request.Quantity));
@@ -62,7 +74,9 @@ namespace Market.Application.Features.Carts.Commands
                     ProductName = i.ProductName,
                     Price = i.Price,
                     Quantity = i.Quantity,
-                    SubTotal = i.SubTotal
+                    SubTotal = i.SubTotal,
+                    VendorId = i.VendorId,
+                    ImageUrl = i.ImageUrl
                 }).ToList(),
                 CreatedAt = cart.CreatedAt,
                 UpdatedAt = cart.UpdatedAt

@@ -1,6 +1,7 @@
 using Market.Domain.Common;
 using Market.Domain.Enums;
 using Market.Domain.ValueObjects;
+using System.ComponentModel.DataAnnotations;
 
 namespace Market.Domain.Entities
 {
@@ -27,6 +28,14 @@ namespace Market.Domain.Entities
 
         public decimal AverageRating { get; set; } = 0.00m;
         public int ReviewCount { get; set; } = 0;
+
+        /// <summary>
+        /// Row version for optimistic concurrency control on inventory updates.
+        /// EF Core uses this to detect concurrent modifications to Product.Quantity/Sold.
+        /// Automatically managed by SQL Server (rowversion type).
+        /// </summary>
+        [Timestamp]
+        public byte[]? RowVersion { get; set; }
 
         // Navigation properties
         public Vendor Vendor { get; set; } = null!;

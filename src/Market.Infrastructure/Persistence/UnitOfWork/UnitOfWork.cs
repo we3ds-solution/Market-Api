@@ -81,11 +81,24 @@ namespace Market.Infrastructure.Persistence.UnitOfWork
         }
 
         /// <summary>
-        /// Save all changes to the database asynchronously
+        /// Save all changes to the database asynchronously.
+        /// Catches DbUpdateConcurrencyException from EF Core and rethrows as InvalidOperationException
+        /// to allow Application layer to handle concurrency conflicts uniformly.
         /// </summary>
         public async Task SaveAsync(CancellationToken cancellationToken = default)
         {
-            await _context.SaveChangesAsync(cancellationToken);
+            try
+            {
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+            catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException ex)
+            {
+                // Translate EF Core concurrency exception to domain exception
+                // This allows Application layer to handle without EF Core dependency
+                throw new InvalidOperationException(
+                    "Concurrency conflict detected: The data has been modified by another transaction. Please retry the operation.",
+                    ex);
+            }
         }
 
         /// <summary>

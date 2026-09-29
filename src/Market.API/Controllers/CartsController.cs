@@ -49,12 +49,20 @@ namespace Market.API.Controllers
         [HttpGet("user/{userId}")]
         public async Task<IActionResult> GetByUserId(int userId)
         {
-            var query = new GetCartByUserIdQuery { UserId = userId };
-            var cart = await _mediator.Send(query);
-            if (cart == null)
-                return NotFound();
+            try
+            {
+                var query = new GetCartByUserIdQuery { UserId = userId };
+                var cart = await _mediator.Send(query);
+                if (cart == null)
+                    return NotFound();
 
-            return Ok(cart);
+                return Ok(cart);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning("Unauthorized cart access: {Message}", ex.Message);
+                return Forbid();
+            }
         }
 
         /// <summary>
@@ -69,6 +77,11 @@ namespace Market.API.Controllers
                 var cart = await _mediator.Send(query);
                 return Ok(cart);
             }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning("Unauthorized cart access: {Message}", ex.Message);
+                return Forbid();
+            }
             catch (KeyNotFoundException ex)
             {
                 _logger.LogWarning("User not found: {Message}", ex.Message);
@@ -82,9 +95,17 @@ namespace Market.API.Controllers
         [HttpGet("user/{userId}/items")]
         public async Task<IActionResult> GetItems(int userId)
         {
-            var query = new GetCartItemsQuery { UserId = userId };
-            var items = await _mediator.Send(query);
-            return Ok(items);
+            try
+            {
+                var query = new GetCartItemsQuery { UserId = userId };
+                var items = await _mediator.Send(query);
+                return Ok(items);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning("Unauthorized cart access: {Message}", ex.Message);
+                return Forbid();
+            }
         }
 
         /// <summary>
@@ -93,9 +114,17 @@ namespace Market.API.Controllers
         [HttpGet("user/{userId}/total")]
         public async Task<IActionResult> GetTotal(int userId)
         {
-            var query = new GetCartTotalQuery { UserId = userId };
-            var total = await _mediator.Send(query);
-            return Ok(new { total });
+            try
+            {
+                var query = new GetCartTotalQuery { UserId = userId };
+                var total = await _mediator.Send(query);
+                return Ok(new { total });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning("Unauthorized cart access: {Message}", ex.Message);
+                return Forbid();
+            }
         }
 
         /// <summary>
@@ -104,9 +133,17 @@ namespace Market.API.Controllers
         [HttpGet("user/{userId}/count")]
         public async Task<IActionResult> GetItemCount(int userId)
         {
-            var query = new GetCartItemCountQuery { UserId = userId };
-            var count = await _mediator.Send(query);
-            return Ok(new { count });
+            try
+            {
+                var query = new GetCartItemCountQuery { UserId = userId };
+                var count = await _mediator.Send(query);
+                return Ok(new { count });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning("Unauthorized cart access: {Message}", ex.Message);
+                return Forbid();
+            }
         }
 
         /// <summary>
@@ -124,6 +161,11 @@ namespace Market.API.Controllers
             {
                 var cart = await _mediator.Send(command);
                 return Ok(new { success = true, cart });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning("Unauthorized cart access: {Message}", ex.Message);
+                return Forbid();
             }
             catch (ArgumentException ex)
             {
@@ -149,6 +191,11 @@ namespace Market.API.Controllers
                 var cart = await _mediator.Send(command);
                 return Ok(new { success = true, cart });
             }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning("Unauthorized cart access: {Message}", ex.Message);
+                return Forbid();
+            }
             catch (KeyNotFoundException ex)
             {
                 _logger.LogWarning("Cart not found: {Message}", ex.Message);
@@ -168,6 +215,11 @@ namespace Market.API.Controllers
                 command.ProductId = productId;
                 var cart = await _mediator.Send(command);
                 return Ok(new { success = true, cart });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning("Unauthorized cart access: {Message}", ex.Message);
+                return Forbid();
             }
             catch (ArgumentException ex)
             {
@@ -193,6 +245,11 @@ namespace Market.API.Controllers
                 var cart = await _mediator.Send(command);
                 return Ok(new { success = true, cart });
             }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning("Unauthorized cart access: {Message}", ex.Message);
+                return Forbid();
+            }
             catch (KeyNotFoundException ex)
             {
                 _logger.LogWarning("Cart not found: {Message}", ex.Message);
@@ -211,6 +268,11 @@ namespace Market.API.Controllers
                 var command = new DeleteCartCommand { UserId = userId };
                 await _mediator.Send(command);
                 return Ok(new { success = true, message = "Cart deleted" });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning("Unauthorized cart access: {Message}", ex.Message);
+                return Forbid();
             }
             catch (KeyNotFoundException ex)
             {

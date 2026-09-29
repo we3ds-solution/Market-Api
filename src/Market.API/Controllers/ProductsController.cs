@@ -55,6 +55,11 @@ namespace Market.API.Controllers
                 var createdProduct = await _mediator.Send(command);
                 return CreatedAtAction(nameof(Get), new { id = createdProduct.Id }, createdProduct);
             }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("SKU"))
+            {
+                _logger.LogWarning("SKU conflict on create: {Message}", ex.Message);
+                return Conflict(new { message = ex.Message });
+            }
             catch (ArgumentException ex)
             {
                 _logger.LogWarning("Invalid product data: {Message}", ex.Message);
@@ -75,10 +80,20 @@ namespace Market.API.Controllers
                 var updatedProduct = await _mediator.Send(command);
                 return Ok(updatedProduct);
             }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning("SKU conflict on update: {Message}", ex.Message);
+                return Conflict(new { message = ex.Message });
+            }
             catch (KeyNotFoundException ex)
             {
                 _logger.LogWarning("Product not found: {Message}", ex.Message);
                 return NotFound(new { message = ex.Message });
+            }
+            catch (ArgumentException ex)
+            {
+                _logger.LogWarning("Invalid product data: {Message}", ex.Message);
+                return BadRequest(new { message = ex.Message });
             }
         }
 

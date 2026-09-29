@@ -79,6 +79,23 @@ namespace Market.Infrastructure.Persistence.Repositories
                 .Take(count)
                 .ToListAsync(cancellationToken);
         }
+
+        /// <summary>
+        /// Check if customer has a verified purchase of a specific product
+        /// </summary>
+        public async Task<bool> CustomerHasVerifiedPurchaseOfProductAsync(
+            int customerId,
+            int productId,
+            CancellationToken cancellationToken = default)
+        {
+            return await _dbSet
+                .Where(o => o.CustomerId == customerId &&
+                            !o.IsDeleted &&
+                            o.OrderStatus == OrderStatus.Delivered &&
+                            o.PaymentStatus == PaymentStatus.Completed)
+                .AnyAsync(o => o.Items.Any(item => item.ProductId == productId),
+                          cancellationToken);
+        }
     }
 }
 

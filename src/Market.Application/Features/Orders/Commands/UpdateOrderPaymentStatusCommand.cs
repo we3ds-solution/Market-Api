@@ -35,6 +35,9 @@ namespace Market.Application.Features.Orders.Commands
             if (order == null)
                 throw new KeyNotFoundException($"Order with ID {request.Id} not found");
 
+            // Validate state transition before mutating
+            order.ValidatePaymentStatusTransition(request.PaymentStatus);
+
             order.PaymentStatus = request.PaymentStatus;
             await _unitOfWork.Orders.UpdateAsync(order, cancellationToken);
             await _unitOfWork.SaveAsync(cancellationToken);

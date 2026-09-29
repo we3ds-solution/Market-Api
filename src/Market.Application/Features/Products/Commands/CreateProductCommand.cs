@@ -55,8 +55,18 @@ namespace Market.Application.Features.Products.Commands
             if (!validation.IsValid)
                 throw new ArgumentException(string.Join(" ", validation.Errors.Select(error => error.Message)));
 
-            if (!await _unitOfWork.Vendors.ExistsAsync(product.VendorId, cancellationToken))
+            // Verify vendor exists and is approved & active
+            var vendor = await _unitOfWork.Vendors.GetByIdAsync(product.VendorId, cancellationToken);
+            if (vendor == null)
                 throw new KeyNotFoundException($"Vendor with ID {product.VendorId} not found");
+            
+            // Only approved and active vendors can create products
+            if (!vendor.IsApproved)
+                throw new InvalidOperationException($"Vendor with ID {vendor.Id} is not approved. Only approved vendors can create products.");
+            
+            if (!vendor.IsActive)
+                throw new InvalidOperationException($"Vendor with ID {vendor.Id} is inactive. Only active vendors can create products.");
+
             if (!await _unitOfWork.Categories.ExistsAsync(product.CategoryId, cancellationToken))
                 throw new KeyNotFoundException($"Category with ID {product.CategoryId} not found");
             if (!string.IsNullOrWhiteSpace(product.SKU) && await _unitOfWork.Products.GetBySkuAsync(product.SKU, cancellationToken) != null)

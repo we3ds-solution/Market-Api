@@ -38,9 +38,16 @@ namespace Market.Application.Features.Orders.Commands
             var order = await _unitOfWork.Orders.GetByIdAsync(request.Id, cancellationToken)
                 ?? throw new KeyNotFoundException($"Order with ID {request.Id} not found");
 
+            // Update order status with validation
+            if (request.Status.HasValue)
+                order.ValidateOrderStatusTransition(request.Status.Value);
+
             // Update allowed fields
-            if (request.Status.HasValue && order.OrderStatus != OrderStatus.Cancelled)
+            if (request.Status.HasValue)
                 order.OrderStatus = request.Status.Value;
+
+            if (request.PaymentStatus.HasValue)
+                order.ValidatePaymentStatusTransition(request.PaymentStatus.Value);
 
             if (request.PaymentStatus.HasValue)
                 order.PaymentStatus = request.PaymentStatus.Value;

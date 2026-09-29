@@ -160,6 +160,11 @@ namespace Market.API.Controllers
                 _logger.LogWarning("Order not found: {Message}", ex.Message);
                 return NotFound(new { message = ex.Message });
             }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning("Invalid operation: {Message}", ex.Message);
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         /// <summary>
@@ -203,6 +208,11 @@ namespace Market.API.Controllers
                 _logger.LogWarning("Order not found: {Message}", ex.Message);
                 return NotFound(new { message = ex.Message });
             }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning("Invalid operation: {Message}", ex.Message);
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         /// <summary>
@@ -221,6 +231,11 @@ namespace Market.API.Controllers
             {
                 _logger.LogWarning("Order not found: {Message}", ex.Message);
                 return NotFound(new { message = ex.Message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                _logger.LogWarning("Invalid operation: {Message}", ex.Message);
+                return BadRequest(new { message = ex.Message });
             }
         }
 

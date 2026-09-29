@@ -1,5 +1,7 @@
 using MediatR;
 using Market.Domain.Entities;
+using Market.Domain.Enums;
+using Market.Application.Abstractions.Services;
 using Microsoft.Extensions.Logging;
 
 namespace Market.Application.Features.Carts.Commands
@@ -12,10 +14,6 @@ namespace Market.Application.Features.Carts.Commands
         public int UserId { get; set; }
         public int ProductId { get; set; }
         public int Quantity { get; set; }
-        public decimal Price { get; set; }
-        public int VendorId { get; set; }
-        public string ProductName { get; set; } = string.Empty;
-        public string? ImageUrl { get; set; }
     }
 
     /// <summary>
@@ -23,12 +21,14 @@ namespace Market.Application.Features.Carts.Commands
     /// </summary>
     public class AddToCartCommandHandler : IRequestHandler<AddToCartCommand, CartResponse>
     {
-        private readonly IMediator _mediator;
+        private readonly ICurrentUserService _currentUserService;
+        private readonly IUnitOfWork _unitOfWork;
         private readonly ILogger<AddToCartCommandHandler> _logger;
 
-        public AddToCartCommandHandler(IMediator mediator, ILogger<AddToCartCommandHandler> logger)
+        public AddToCartCommandHandler(ICurrentUserService currentUserService, IUnitOfWork unitOfWork, ILogger<AddToCartCommandHandler> logger)
         {
-            _mediator = mediator;
+            _currentUserService = currentUserService;
+            _unitOfWork = unitOfWork;
             _logger = logger;
         }
 
@@ -37,71 +37,57 @@ namespace Market.Application.Features.Carts.Commands
             _logger.LogInformation("Handling AddToCartCommand for user: {UserId}, product: {ProductId}",
                 request.UserId, request.ProductId);
 
+            // Ownership check: reject if client tries to add to different user's cart
+            var authenticatedUserId = _currentUserService.GetCurrentUserId();
+            if (request.UserId != authenticatedUserId)
+            {
+                _logger.LogWarning("Unauthorized cart access attempt: user {AuthenticatedUserId} tried to modify cart for user {RequestedUserId}",
+                    authenticatedUserId, request.UserId);
+                throw new UnauthorizedAccessException($"Cannot modify cart for user {request.UserId}");
+            }
+
+            if (request.Quantity <= 0)
+                throw new ArgumentException("Quantity must be greater than 0", nameof(request.Quantity));
+
+            // Fetch product from database
+            var product = await _unitOfWork.Products.GetByIdAsync(request.ProductId, cancellationToken);
+            if (product == null)
+                throw new KeyNotFoundException($"Product {request.ProductId} not found");
+
+            if (product.Status != ProductStatus.Active)
+                throw new InvalidOperationException($"Product {request.ProductId} is not active");
+
+            // Calculate unit price using server-side logic (reuse Issue #1 pricing logic)
+            var unitPrice = product.DiscountPrice ?? product.Price;
+
+            // Create CartItem with server-controlled values
             var cartItem = new CartItem
             {
-                ProductId = request.ProductId,
-                VendorId = request.VendorId,
-                ProductName = request.ProductName,
+                ProductId = product.Id,
+                VendorId = product.VendorId,
+                ProductName = product.Name,
                 Quantity = request.Quantity,
-                Price = request.Price,
-                ImageUrl = request.ImageUrl
+                Price = unitPrice,
+                ImageUrl = product.ImageUrl
             };
 
-            var result = await _mediator.Send(
-                new AddToCartInternalCommand { UserId = request.UserId, Item = cartItem },
-                cancellationToken);
-
-            return result;
-        }
-    }
-
-    /// <summary>
-    /// Internal command for adding to cart
-    /// </summary>
-    internal class AddToCartInternalCommand : IRequest<CartResponse>
-    {
-        public int UserId { get; set; }
-        public CartItem Item { get; set; } = null!;
-    }
-
-    /// <summary>
-    /// Internal add to cart command handler
-    /// </summary>
-    internal class AddToCartInternalCommandHandler : IRequestHandler<AddToCartInternalCommand, CartResponse>
-    {
-        private readonly IUnitOfWork _unitOfWork;
-        private readonly ILogger<AddToCartInternalCommandHandler> _logger;
-
-        public AddToCartInternalCommandHandler(IUnitOfWork unitOfWork, ILogger<AddToCartInternalCommandHandler> logger)
-        {
-            _unitOfWork = unitOfWork;
-            _logger = logger;
-        }
-
-        public async Task<CartResponse> Handle(AddToCartInternalCommand request, CancellationToken cancellationToken)
-        {
-            _logger.LogInformation("Handling AddToCartInternalCommand for user: {UserId}, product: {ProductId}, vendor: {VendorId}",
-                request.UserId, request.Item.ProductId, request.Item.VendorId);
-
-            // Get or create cart for user
-            var cart = await _unitOfWork.Carts.GetByUserIdAsync(request.UserId)
+            var result = await _unitOfWork.Carts.GetByUserIdAsync(request.UserId, cancellationToken)
                       ?? new Domain.Entities.Cart { UserId = request.UserId };
 
-            // Use domain method to add item - this will handle the ProductId uniqueness logic.
-            cart.AddItem(request.Item);
+            result.AddItem(cartItem);
 
-            if (cart.Id == 0)
+            if (result.Id == 0)
             {
-                await _unitOfWork.Carts.CreateAsync(cart, cancellationToken);
+                await _unitOfWork.Carts.CreateAsync(result, cancellationToken);
             }
             else
             {
-                await _unitOfWork.Carts.UpdateAsync(cart, cancellationToken);
+                await _unitOfWork.Carts.UpdateAsync(result, cancellationToken);
             }
 
             await _unitOfWork.SaveAsync(cancellationToken);
 
-            return MapToResponse(cart);
+            return MapToResponse(result);
         }
 
         private CartResponse MapToResponse(Domain.Entities.Cart cart)

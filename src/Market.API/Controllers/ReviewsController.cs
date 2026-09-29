@@ -153,6 +153,11 @@ namespace Market.API.Controllers
                 var createdReview = await _mediator.Send(command);
                 return CreatedAtAction(nameof(Get), new { id = createdReview.Id }, createdReview);
             }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning("Unauthorized review creation: {Message}", ex.Message);
+                return Forbid();
+            }
             catch (ArgumentException ex)
             {
                 _logger.LogWarning("Invalid review data: {Message}", ex.Message);
@@ -180,6 +185,11 @@ namespace Market.API.Controllers
             {
                 var updatedReview = await _mediator.Send(command);
                 return Ok(updatedReview);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning("Unauthorized review update: {Message}", ex.Message);
+                return Forbid();
             }
             catch (KeyNotFoundException ex)
             {
@@ -223,6 +233,11 @@ namespace Market.API.Controllers
                 var command = new DeleteReviewCommand { Id = id };
                 await _mediator.Send(command);
                 return Ok(new { success = true, message = "Review deleted" });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogWarning("Unauthorized review deletion: {Message}", ex.Message);
+                return Forbid();
             }
             catch (KeyNotFoundException ex)
             {

@@ -15,7 +15,7 @@ public class UpdateCartItemQuantityHandlerTests
         carts.Setup(repository => repository.UpdateAsync(cart, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         unitOfWork.SetupGet(value => value.Carts).Returns(carts.Object);
         unitOfWork.Setup(value => value.SaveAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
-        var handler = new UpdateCartItemQuantityCommandHandler(unitOfWork.Object, NullLogger<UpdateCartItemQuantityCommandHandler>.Instance);
+        var currentUserServiceMock = new Mock<Market.Application.Abstractions.Services.ICurrentUserService>(); currentUserServiceMock.Setup(s => s.GetCurrentUserId()).Returns(3); var handler = new UpdateCartItemQuantityCommandHandler(currentUserServiceMock.Object, unitOfWork.Object, NullLogger<UpdateCartItemQuantityCommandHandler>.Instance);
 
         var result = await handler.Handle(new UpdateCartItemQuantityCommand { UserId = 3, ProductId = 4, Quantity = 5 }, CancellationToken.None);
 
@@ -28,7 +28,7 @@ public class UpdateCartItemQuantityHandlerTests
     public async Task Handle_WithNonPositiveQuantity_RejectsBeforePersistence()
     {
         var unitOfWork = new Mock<IUnitOfWork>(MockBehavior.Strict);
-        var handler = new UpdateCartItemQuantityCommandHandler(unitOfWork.Object, NullLogger<UpdateCartItemQuantityCommandHandler>.Instance);
+        var currentUserServiceMock = new Mock<Market.Application.Abstractions.Services.ICurrentUserService>(); currentUserServiceMock.Setup(s => s.GetCurrentUserId()).Returns(3); var handler = new UpdateCartItemQuantityCommandHandler(currentUserServiceMock.Object, unitOfWork.Object, NullLogger<UpdateCartItemQuantityCommandHandler>.Instance);
 
         await Assert.ThrowsAsync<ArgumentException>(() => handler.Handle(
             new UpdateCartItemQuantityCommand { UserId = 3, ProductId = 4, Quantity = 0 }, CancellationToken.None));
@@ -36,3 +36,4 @@ public class UpdateCartItemQuantityHandlerTests
         unitOfWork.Verify(value => value.SaveAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 }
+

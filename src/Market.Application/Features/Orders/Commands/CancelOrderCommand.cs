@@ -30,12 +30,8 @@ namespace Market.Application.Features.Orders.Commands
             if (order == null)
                 return false;
 
-            // Can only cancel pending orders
-            if (order.OrderStatus != OrderStatus.Pending)
-            {
-                _logger.LogWarning("Cannot cancel order {Id} with status {Status}", request.Id, order.OrderStatus);
-                return false;
-            }
+            // Validate state transition to Cancelled
+            order.ValidateOrderStatusTransition(OrderStatus.Cancelled);
 
             // Update order status
             order.OrderStatus = OrderStatus.Cancelled;

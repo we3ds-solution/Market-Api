@@ -109,6 +109,11 @@ namespace Market.Application.Features.Orders.Commands
             order.CalculateTotal();
 
             await _unitOfWork.Orders.CreateAsync(order, cancellationToken);
+            
+            // SaveAsync wraps SaveChangesAsync and catches DbUpdateConcurrencyException.
+            // If concurrent orders modified the same product, UnitOfWork will throw InvalidOperationException.
+            // We let this exception propagate to the API layer (already handled by controller).
+            // The entire transaction is rolled back: Order NOT created, inventory NOT decremented.
             await _unitOfWork.SaveAsync(cancellationToken);
 
             return new OrderResponse
