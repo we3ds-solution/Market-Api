@@ -1,3 +1,10 @@
+## [3.1.1](https://github.com/Mostafa-SAID7/Market-Api/compare/v3.1.0...v3.1.1) (2026-09-29)
+
+
+### Bug Fixes
+
+* **test:** simplify ReviewDuplicationTests to eliminate tuple syntax ([0f3b052](https://github.com/Mostafa-SAID7/Market-Api/commit/0f3b052321b37c4d56507acc97a0983b5e608448))
+
 # [3.1.0](https://github.com/Mostafa-SAID7/Market-Api/compare/v3.0.4...v3.1.0) (2026-09-29)
 
 
