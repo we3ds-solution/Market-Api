@@ -55,7 +55,7 @@ namespace Market.Application.Features.Products.Commands
 
             var validation = _productValidator.Validate(product);
             if (!validation.IsValid)
-                throw new ArgumentException(string.Join(" ", validation.Errors.Select(error => error.Message)));
+                throw new ArgumentException(string.Join(" ", validation.Errors.Select(error => error.ErrorMessage)));
 
             // Verify vendor exists and is approved & active
             var vendor = await _unitOfWork.Vendors.GetByIdAsync(product.VendorId, cancellationToken);

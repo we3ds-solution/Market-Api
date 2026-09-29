@@ -147,7 +147,7 @@ namespace Market.Application.Features.Products.Commands
 
             var validation = _productValidator.Validate(newProduct);
             if (!validation.IsValid)
-                throw new ArgumentException(string.Join(" ", validation.Errors.Select(error => error.Message)));
+                throw new ArgumentException(string.Join(" ", validation.Errors.Select(error => error.ErrorMessage)));
 
             // Apply updates to existing entity (preserves navigation properties, etc.)
             product.Name = request.Name;
