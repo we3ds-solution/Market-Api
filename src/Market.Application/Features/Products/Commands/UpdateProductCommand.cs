@@ -77,11 +77,13 @@ namespace Market.Application.Features.Products.Commands
     internal class UpdateProductInternalCommandHandler : IRequestHandler<UpdateProductInternalCommand, ProductResponse>
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IValidator<Product> _productValidator;
         private readonly ILogger<UpdateProductInternalCommandHandler> _logger;
 
-        public UpdateProductInternalCommandHandler(IUnitOfWork unitOfWork, ILogger<UpdateProductInternalCommandHandler> logger)
+        public UpdateProductInternalCommandHandler(IUnitOfWork unitOfWork, IValidator<Product> productValidator, ILogger<UpdateProductInternalCommandHandler> logger)
         {
             _unitOfWork = unitOfWork;
+            _productValidator = productValidator;
             _logger = logger;
         }
 
@@ -143,7 +145,7 @@ namespace Market.Application.Features.Products.Commands
                 ReviewCount = product.ReviewCount
             };
 
-            var validation = new Validators.ProductValidator().Validate(newProduct);
+            var validation = _productValidator.Validate(newProduct);
             if (!validation.IsValid)
                 throw new ArgumentException(string.Join(" ", validation.Errors.Select(error => error.Message)));
 

@@ -1,4 +1,5 @@
 using Market.API.Middleware;
+using Market.API.Services;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.OpenApi.Models;
 using System.Threading.RateLimiting;
@@ -17,6 +18,9 @@ public static class DependencyInjection
 
         // Add Health Checks
         services.AddHealthChecks();
+
+        // Register exception mapper service (SRP - separates exception mapping from middleware)
+        services.AddScoped<IExceptionMapper, ExceptionMapper>();
 
         // State-changing public endpoints are protected from basic abuse. The partition is
         // intentionally based on remote IP because this API does not yet have authentication.

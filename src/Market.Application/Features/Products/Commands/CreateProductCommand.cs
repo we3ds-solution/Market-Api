@@ -26,11 +26,13 @@ namespace Market.Application.Features.Products.Commands
     public class CreateProductCommandHandler : IRequestHandler<CreateProductCommand, ProductResponse>
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IValidator<Product> _productValidator;
         private readonly ILogger<CreateProductCommandHandler> _logger;
 
-        public CreateProductCommandHandler(IUnitOfWork unitOfWork, ILogger<CreateProductCommandHandler> logger)
+        public CreateProductCommandHandler(IUnitOfWork unitOfWork, IValidator<Product> productValidator, ILogger<CreateProductCommandHandler> logger)
         {
             _unitOfWork = unitOfWork;
+            _productValidator = productValidator;
             _logger = logger;
         }
 
@@ -51,7 +53,7 @@ namespace Market.Application.Features.Products.Commands
                 SKU = request.SKU
             };
 
-            var validation = new Validators.ProductValidator().Validate(product);
+            var validation = _productValidator.Validate(product);
             if (!validation.IsValid)
                 throw new ArgumentException(string.Join(" ", validation.Errors.Select(error => error.Message)));
 

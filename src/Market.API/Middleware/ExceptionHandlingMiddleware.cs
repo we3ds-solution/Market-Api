@@ -1,20 +1,24 @@
 using System.Net;
 using System.Text.Json;
+using Market.API.Services;
 
 namespace Market.API.Middleware
 {
     /// <summary>
-    /// Centralized exception handling middleware for all errors
+    /// Centralized exception handling middleware for all errors.
+    /// Catches unhandled exceptions and delegates mapping to IExceptionMapper (SRP).
     /// </summary>
     public class ExceptionHandlingMiddleware
     {
         private readonly RequestDelegate _next;
         private readonly ILogger<ExceptionHandlingMiddleware> _logger;
+        private readonly IExceptionMapper _exceptionMapper;
 
-        public ExceptionHandlingMiddleware(RequestDelegate next, ILogger<ExceptionHandlingMiddleware> logger)
+        public ExceptionHandlingMiddleware(RequestDelegate next, ILogger<ExceptionHandlingMiddleware> logger, IExceptionMapper exceptionMapper)
         {
             _next = next;
             _logger = logger;
+            _exceptionMapper = exceptionMapper;
         }
 
         public async Task InvokeAsync(HttpContext context)
@@ -30,46 +34,16 @@ namespace Market.API.Middleware
             }
         }
 
-        private static Task HandleExceptionAsync(HttpContext context, Exception exception)
+        private async Task HandleExceptionAsync(HttpContext context, Exception exception)
         {
             context.Response.ContentType = "application/json";
 
-            var response = new ErrorResponse();
+            // Map exception to HTTP response using the mapper service
+            _exceptionMapper.MapException(context, exception);
 
-            switch (exception)
-            {
-                case ArgumentNullException:
-                    context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
-                    response.StatusCode = (int)HttpStatusCode.BadRequest;
-                    response.Message = "Required field is missing.";
-                    break;
-
-                case ArgumentException:
-                    context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
-                    response.StatusCode = (int)HttpStatusCode.BadRequest;
-                    response.Message = "Invalid argument provided.";
-                    break;
-
-                case KeyNotFoundException:
-                    context.Response.StatusCode = (int)HttpStatusCode.NotFound;
-                    response.StatusCode = (int)HttpStatusCode.NotFound;
-                    response.Message = "Resource not found.";
-                    break;
-
-                case UnauthorizedAccessException:
-                    context.Response.StatusCode = (int)HttpStatusCode.Unauthorized;
-                    response.StatusCode = (int)HttpStatusCode.Unauthorized;
-                    response.Message = "You are not authorized to access this resource.";
-                    break;
-
-                default:
-                    context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
-                    response.StatusCode = (int)HttpStatusCode.InternalServerError;
-                    response.Message = "An unexpected error occurred.";
-                    break;
-            }
-
-            return context.Response.WriteAsJsonAsync(response);
+            // Get error response and write to response body
+            var errorResponse = _exceptionMapper.GetErrorResponse(exception);
+            await context.Response.WriteAsJsonAsync(errorResponse);
         }
     }
 

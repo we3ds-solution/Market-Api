@@ -1,26 +1,36 @@
 namespace Market.API.Middleware
 {
     /// <summary>
-    /// Extension methods to register all custom middleware
+    /// Extension methods for custom middleware registration.
+    /// Provides fluent API for adding cross-cutting concerns to the HTTP pipeline.
     /// </summary>
     public static class MiddlewareExtensions
     {
         /// <summary>
-        /// Register all custom middleware in the correct order
+        /// Add custom middleware in the correct order for cross-cutting concerns.
+        /// Order matters:
+        /// 1. CorrelationId (add ID to all logs)
+        /// 2. RequestLogging (log incoming requests)
+        /// 3. ValidationMiddleware (validate request before business logic)
+        /// 4. ExceptionHandling (catch all exceptions)
+        /// 5. SecurityHeaders (add headers to responses)
         /// </summary>
         public static WebApplication UseCustomMiddleware(this WebApplication app)
         {
-            // Correlation ID must be first to tag all requests
+            // Add correlation ID middleware
             app.UseMiddleware<CorrelationIdMiddleware>();
 
-            // Request logging should be early to capture details
+            // Add request logging middleware
             app.UseMiddleware<RequestLoggingMiddleware>();
 
-            // Validation middleware
+            // Add validation middleware
             app.UseMiddleware<ValidationMiddleware>();
 
-            // Exception handling must be near the end but before other middleware
+            // Add exception handling middleware (must be near top to catch all exceptions)
             app.UseMiddleware<ExceptionHandlingMiddleware>();
+
+            // Add security headers middleware
+            app.UseMiddleware<SecurityHeadersMiddleware>();
 
             return app;
         }
