@@ -44,8 +44,9 @@ namespace Market.Application.Features.Categories.Commands
 
     /// <summary>
     /// Handler for deleting category with referential integrity check.
-    /// EF Core FK constraint (DeleteBehavior.Restrict) prevents deletion if Products reference the Category.
+    /// Verifies no non-deleted Products reference this Category before soft-deleting.
     /// Soft-delete is used: sets IsDeleted=true and DeletedAt=UtcNow.
+    /// FK Restrict behavior is enforced at the application level.
     /// </summary>
     internal class DeleteCategoryInternalCommandHandler : IRequestHandler<DeleteCategoryInternalCommand, bool>
     {
@@ -66,6 +67,14 @@ namespace Market.Application.Features.Categories.Commands
             var category = await _unitOfWork.Categories.GetByIdAsync(request.Id, cancellationToken);
             if (category == null)
                 throw new KeyNotFoundException($"Category with ID {request.Id} not found");
+
+            // Verify no non-deleted products reference this category (FK Restrict enforcement)
+            var productsInCategory = await _unitOfWork.Products.GetByCategoryIdAsync(request.Id, cancellationToken);
+            if (productsInCategory.Any())
+            {
+                _logger.LogWarning("Attempted to delete category {CategoryId} but {ProductCount} products still reference it", request.Id, productsInCategory.Count());
+                throw new InvalidOperationException($"Cannot delete category with ID {request.Id}. {productsInCategory.Count()} product(s) still reference this category. Delete or reassign these products first.");
+            }
 
             // Soft-delete the category: sets IsDeleted=true, DeletedAt=UtcNow
             category.Delete();

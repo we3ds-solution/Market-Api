@@ -89,11 +89,16 @@ public class CategoryRelationshipTests
     {
         var unitOfWork = new Mock<IUnitOfWork>(MockBehavior.Strict);
         var categoryRepo = new Mock<ICategoryRepository>(MockBehavior.Strict);
+        var productRepo = new Mock<IProductRepository>(MockBehavior.Strict);
 
         unitOfWork.SetupGet(u => u.Categories).Returns(categoryRepo.Object);
+        unitOfWork.SetupGet(u => u.Products).Returns(productRepo.Object);
         unitOfWork.Setup(u => u.SaveAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         categoryRepo.Setup(r => r.UpdateAsync(It.IsAny<Category>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+        // Default: no products in category
+        productRepo.Setup(r => r.GetByCategoryIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Product>());
 
         var handler = new DeleteCategoryInternalCommandHandler(
             unitOfWork.Object,
@@ -382,6 +387,52 @@ public class CategoryRelationshipTests
         Assert.True(category.IsDeleted);
         Assert.NotNull(category.DeletedAt);
         unitOfWork.Verify(u => u.SaveAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    // -----------------------------------------------------------------------
+    // TEST 7b: Category deletion prevented if Products reference it (FK Restrict)
+    // -----------------------------------------------------------------------
+    [Fact]
+    public async Task DeleteCategory_FailsWhenProductsReferenceIt()
+    {
+        // Arrange
+        var (unitOfWork, categoryRepo, handler) = BuildDeleteCategoryHandler();
+        var productRepo = new Mock<IProductRepository>(MockBehavior.Strict);
+
+        var category = new Category
+        {
+            Id = 1,
+            Name = "Electronics",
+            IsActive = true,
+            IsDeleted = false,
+            DeletedAt = null
+        };
+
+        var product = new Product
+        {
+            Id = 1,
+            Name = "Test Product",
+            CategoryId = 1,
+            VendorId = 1,
+            Price = 100m,
+            IsDeleted = false
+        };
+
+        categoryRepo.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(category);
+        productRepo.Setup(r => r.GetByCategoryIdAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Product> { product });
+        unitOfWork.SetupGet(u => u.Products).Returns(productRepo.Object);
+
+        var command = new DeleteCategoryInternalCommand { Id = 1 };
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => handler.Handle(command, CancellationToken.None));
+        Assert.Contains("Cannot delete category", exception.Message);
+        Assert.Contains("product(s) still reference", exception.Message);
+        
+        // Category should NOT be marked as deleted
+        Assert.False(category.IsDeleted);
     }
 
     // -----------------------------------------------------------------------
