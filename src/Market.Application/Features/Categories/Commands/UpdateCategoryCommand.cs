@@ -56,6 +56,59 @@ namespace Market.Application.Features.Categories.Commands
         public string Description { get; set; } = string.Empty;
         public string? ImageUrl { get; set; }
     }
+
+    /// <summary>
+    /// Handler for updating category with slug regeneration
+    /// </summary>
+    internal class UpdateCategoryInternalCommandHandler : IRequestHandler<UpdateCategoryInternalCommand, CategoryResponse>
+    {
+        private readonly IUnitOfWork _unitOfWork;
+        private readonly ILogger<UpdateCategoryInternalCommandHandler> _logger;
+
+        public UpdateCategoryInternalCommandHandler(IUnitOfWork unitOfWork, ILogger<UpdateCategoryInternalCommandHandler> logger)
+        {
+            _unitOfWork = unitOfWork;
+            _logger = logger;
+        }
+
+        public async Task<CategoryResponse> Handle(UpdateCategoryInternalCommand request, CancellationToken cancellationToken)
+        {
+            _logger.LogInformation("Updating category {CategoryId}", request.Id);
+
+            // Load existing category
+            var category = await _unitOfWork.Categories.GetByIdAsync(request.Id, cancellationToken);
+            if (category == null)
+                throw new KeyNotFoundException($"Category with ID {request.Id} not found");
+
+            // Update properties
+            category.Name = request.Name;
+            category.Description = request.Description;
+            category.ImageUrl = request.ImageUrl;
+
+            // Regenerate slug from the updated name
+            category.UpdateSlugFromName();
+
+            // Persist changes
+            await _unitOfWork.Categories.UpdateAsync(category, cancellationToken);
+            await _unitOfWork.SaveAsync(cancellationToken);
+
+            _logger.LogInformation("Category {CategoryId} successfully updated", request.Id);
+
+            return new CategoryResponse
+            {
+                Id = category.Id,
+                Name = category.Name,
+                Description = category.Description,
+                ImageUrl = category.ImageUrl,
+                Slug = category.Slug,
+                ParentCategoryId = category.ParentCategoryId,
+                IsActive = category.IsActive,
+                DisplayOrder = category.DisplayOrder,
+                CreatedAt = category.CreatedAt,
+                UpdatedAt = category.UpdatedAt
+            };
+        }
+    }
 }
 
 

@@ -31,7 +31,7 @@ namespace Market.Application.Features.Categories.Queries
             _logger.LogInformation("Handling GetCategoryByIdQuery for category: {CategoryId}", request.Id);
 
             var category = await _unitOfWork.Categories.GetByIdAsync(request.Id);
-            if (category == null)
+            if (category == null || !category.IsActive)
                 return null;
 
             return new CategoryResponse

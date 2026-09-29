@@ -67,8 +67,14 @@ namespace Market.Application.Features.Products.Commands
             if (!vendor.IsActive)
                 throw new InvalidOperationException($"Vendor with ID {vendor.Id} is inactive. Only active vendors can create products.");
 
-            if (!await _unitOfWork.Categories.ExistsAsync(product.CategoryId, cancellationToken))
+            // Verify category exists and is active
+            var category = await _unitOfWork.Categories.GetByIdAsync(product.CategoryId, cancellationToken);
+            if (category == null)
                 throw new KeyNotFoundException($"Category with ID {product.CategoryId} not found");
+
+            if (!category.IsActive)
+                throw new InvalidOperationException($"Category with ID {product.CategoryId} is inactive. Only active categories can be assigned to products.");
+
             if (!string.IsNullOrWhiteSpace(product.SKU) && await _unitOfWork.Products.GetBySkuAsync(product.SKU, cancellationToken) != null)
                 throw new InvalidOperationException("A product with this SKU already exists.");
 

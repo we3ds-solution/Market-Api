@@ -41,6 +41,43 @@ namespace Market.Application.Features.Categories.Commands
     {
         public int Id { get; set; }
     }
+
+    /// <summary>
+    /// Handler for deleting category with referential integrity check.
+    /// EF Core FK constraint (DeleteBehavior.Restrict) prevents deletion if Products reference the Category.
+    /// Soft-delete is used: sets IsDeleted=true and DeletedAt=UtcNow.
+    /// </summary>
+    internal class DeleteCategoryInternalCommandHandler : IRequestHandler<DeleteCategoryInternalCommand, bool>
+    {
+        private readonly IUnitOfWork _unitOfWork;
+        private readonly ILogger<DeleteCategoryInternalCommandHandler> _logger;
+
+        public DeleteCategoryInternalCommandHandler(IUnitOfWork unitOfWork, ILogger<DeleteCategoryInternalCommandHandler> logger)
+        {
+            _unitOfWork = unitOfWork;
+            _logger = logger;
+        }
+
+        public async Task<bool> Handle(DeleteCategoryInternalCommand request, CancellationToken cancellationToken)
+        {
+            _logger.LogInformation("Handling DeleteCategoryInternalCommand for category: {CategoryId}", request.Id);
+
+            // Load the category (soft-deleted categories are excluded by default)
+            var category = await _unitOfWork.Categories.GetByIdAsync(request.Id, cancellationToken);
+            if (category == null)
+                throw new KeyNotFoundException($"Category with ID {request.Id} not found");
+
+            // Soft-delete the category: sets IsDeleted=true, DeletedAt=UtcNow
+            category.Delete();
+
+            // Persist the deletion
+            await _unitOfWork.Categories.UpdateAsync(category, cancellationToken);
+            await _unitOfWork.SaveAsync(cancellationToken);
+
+            _logger.LogInformation("Category {CategoryId} successfully soft-deleted", request.Id);
+            return true;
+        }
+    }
 }
 
 

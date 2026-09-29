@@ -105,6 +105,14 @@ namespace Market.Application.Features.Products.Commands
             if (!vendor.IsActive)
                 throw new InvalidOperationException($"Vendor with ID {vendor.Id} is inactive. Only active vendors can update products.");
 
+            // Verify product's category is still active (category cannot be changed, but its state might have changed)
+            var category = await _unitOfWork.Categories.GetByIdAsync(product.CategoryId, cancellationToken);
+            if (category == null)
+                throw new KeyNotFoundException($"Category with ID {product.CategoryId} not found");
+
+            if (!category.IsActive)
+                throw new InvalidOperationException($"Category with ID {product.CategoryId} is inactive. Cannot update product assigned to an inactive category.");
+
             // SKU uniqueness check (but allow same SKU on same product)
             if (!string.IsNullOrWhiteSpace(request.SKU))
             {

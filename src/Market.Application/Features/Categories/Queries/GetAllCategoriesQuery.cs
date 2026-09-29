@@ -30,19 +30,24 @@ namespace Market.Application.Features.Categories.Queries
             _logger.LogInformation("Handling GetAllCategoriesQuery");
 
             var categories = await _unitOfWork.Categories.GetAllAsync();
-            return categories.Select(c => new CategoryResponse
-            {
-                Id = c.Id,
-                Name = c.Name,
-                Description = c.Description,
-                ImageUrl = c.ImageUrl,
-                Slug = c.Slug,
-                ParentCategoryId = c.ParentCategoryId,
-                IsActive = c.IsActive,
-                DisplayOrder = c.DisplayOrder,
-                CreatedAt = c.CreatedAt,
-                UpdatedAt = c.UpdatedAt
-            }).ToList();
+            
+            // Filter to active categories only for client queries
+            return categories
+                .Where(c => c.IsActive)
+                .Select(c => new CategoryResponse
+                {
+                    Id = c.Id,
+                    Name = c.Name,
+                    Description = c.Description,
+                    ImageUrl = c.ImageUrl,
+                    Slug = c.Slug,
+                    ParentCategoryId = c.ParentCategoryId,
+                    IsActive = c.IsActive,
+                    DisplayOrder = c.DisplayOrder,
+                    CreatedAt = c.CreatedAt,
+                    UpdatedAt = c.UpdatedAt
+                })
+                .ToList();
         }
     }
 }
